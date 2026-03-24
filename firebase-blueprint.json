@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string", "format": "uri" }
+      },
+      "required": ["id", "email"]
+    },
+    "Account": {
+      "title": "Account",
+      "description": "Financial account (Cash, Bank, etc.)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["Efectivo", "Banco", "Digital", "Ahorro", "Inversión"] },
+        "balance": { "type": "number" },
+        "color": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "type", "balance", "userId"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Transaction category",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "limit": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "userId"]
+    },
+    "Movement": {
+      "title": "Movement",
+      "description": "Income, expense or transfer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense", "transfer"] },
+        "amount": { "type": "number" },
+        "categoryId": { "type": "string" },
+        "accountOriginId": { "type": "string" },
+        "accountDestinationId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "note": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["type", "amount", "date", "userId"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "Financial goal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "targetAmount": { "type": "number" },
+        "currentAmount": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "targetAmount", "currentAmount", "userId"]
+    },
+    "WeeklyBudget": {
+      "title": "WeeklyBudget",
+      "description": "Weekly budget planning",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "income": { "type": "number" },
+        "expenses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "amount": { "type": "number" }
+            }
+          }
+        },
+        "userId": { "type": "string" }
+      },
+      "required": ["income", "userId"]
+    },
+    "ManualUser": {
+      "title": "ManualUser",
+      "description": "User for manual authentication",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["username", "password"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/accounts/{accountId}": { "schema": "Account", "description": "User financial accounts" },
+    "/categories/{categoryId}": { "schema": "Category", "description": "Transaction categories" },
+    "/movements/{movementId}": { "schema": "Movement", "description": "Financial movements" },
+    "/goals/{goalId}": { "schema": "Goal", "description": "Financial goals" },
+    "/weeklyBudgets/{budgetId}": { "schema": "WeeklyBudget", "description": "Weekly budgets" },
+    "/manual_users/{userId}": { "schema": "ManualUser", "description": "Manual authentication users" }
+  }
+}

@@ -1,0 +1,182 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (optional)
+    //   - email: string (required, email format)
+    //   - photoURL: string (optional, uri format)
+    //
+    // Collection: accounts
+    // Document ID: accountId
+    // Fields:
+    //   - name: string (required)
+    //   - type: string (required, enum: Efectivo, Banco, Digital, Ahorro, Inversión)
+    //   - balance: number (required)
+    //   - color: string (required)
+    //   - userId: string (required)
+    //
+    // Collection: categories
+    // Document ID: categoryId
+    // Fields:
+    //   - name: string (required)
+    //   - limit: number (optional)
+    //   - userId: string (required)
+    //
+    // Collection: movements
+    // Document ID: movementId
+    // Fields:
+    //   - type: string (required, enum: income, expense, transfer)
+    //   - amount: number (required, positive)
+    //   - categoryId: string (optional)
+    //   - accountOriginId: string (required)
+    //   - accountDestinationId: string (optional, required for transfer)
+    //   - date: string (required, ISO 8601)
+    //   - note: string (optional)
+    //   - userId: string (required)
+    //
+    // Collection: goals
+    // Document ID: goalId
+    // Fields:
+    //   - name: string (required)
+    //   - targetAmount: number (required, positive)
+    //   - currentAmount: number (required)
+    //   - userId: string (required)
+    //
+    // Collection: weeklyBudgets
+    // Document ID: budgetId
+    // Fields:
+    //   - income: number (required)
+    //   - expenses: list (required, objects with name and amount)
+    //   - userId: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function uidUnchanged() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "milnerdelacruz03@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email']) &&
+             data.id is string &&
+             isValidEmail(data.email);
+    }
+
+    function isValidAccount(data) {
+      return data.keys().hasAll(['name', 'type', 'balance', 'userId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.type in ['Efectivo', 'Banco', 'Digital', 'Ahorro', 'Inversión'] &&
+             data.balance is number &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'userId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('limit' in data) || data.limit is number) &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidMovement(data) {
+      return data.keys().hasAll(['type', 'amount', 'date', 'userId', 'accountOriginId']) &&
+             data.type in ['income', 'expense', 'transfer'] &&
+             data.amount is number && data.amount >= 0 &&
+             isValidDateString(data.date) &&
+             data.userId == request.auth.uid &&
+             data.accountOriginId is string &&
+             (!('accountDestinationId' in data) || data.accountDestinationId is string) &&
+             (!('categoryId' in data) || data.categoryId is string);
+    }
+
+    function isValidGoal(data) {
+      return data.keys().hasAll(['name', 'targetAmount', 'currentAmount', 'userId']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.targetAmount is number && data.targetAmount > 0 &&
+             data.currentAmount is number &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidWeeklyBudget(data) {
+      return data.keys().hasAll(['income', 'expenses', 'userId']) &&
+             data.income is number &&
+             data.expenses is list &&
+             data.userId == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules (MODIFIED FOR MANUAL AUTH - PUBLIC ACCESS)
+    // WARNING: These rules are permissive because Firebase Auth is bypassed.
+    // ===============================================================
+
+    match /manual_users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /accounts/{accountId} {
+      allow read, write: if true;
+    }
+
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
+
+    match /movements/{movementId} {
+      allow read, write: if true;
+    }
+
+    match /goals/{goalId} {
+      allow read, write: if true;
+    }
+
+    match /weeklyBudgets/{budgetId} {
+      allow read, write: if true;
+    }
+  }
+}

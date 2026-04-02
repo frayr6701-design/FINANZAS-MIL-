@@ -84,11 +84,12 @@ import {
   ShoppingBag,
   Zap,
   Heart,
-  Music
+  Music,
+  Table
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay, parseISO, subMonths, addMonths, isAfter, addDays } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay, parseISO, subMonths, addMonths, isAfter, addDays, getWeekOfMonth, getDay, eachDayOfInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { 
   PieChart as RePieChart, 
@@ -319,10 +320,8 @@ export default function App() {
   };
 
   const handleDeleteMovement = async (movement: Movement) => {
-    if (!user) return;
+    if (!user || !movement.id) return;
     
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este movimiento?')) return;
-
     try {
       await runTransaction(db, async (transaction) => {
         const movementRef = doc(db, 'movements', movement.id!);
@@ -359,8 +358,7 @@ export default function App() {
         transaction.delete(movementRef);
       });
     } catch (error) {
-      console.error("Error deleting movement:", error);
-      alert("Hubo un error al eliminar el movimiento.");
+      handleFirestoreError(error, OperationType.DELETE, `movements/${movement.id}`);
     }
   };
 
@@ -673,33 +671,36 @@ export default function App() {
                 setIsMovementModalOpen(true);
               }} 
               onDeleteMovement={handleDeleteMovement}
+              deferredPrompt={deferredPrompt}
             />
           )}
           {activeTab === 'calendar' && <CalendarView movements={movements} accounts={accounts} categories={categories} darkMode={darkMode} onDelete={handleDeleteMovement} />}
           {activeTab === 'stats' && <StatsView movements={movements} categories={categories} darkMode={darkMode} />}
           {activeTab === 'budget' && <WeeklyBudgetView budget={weeklyBudget} userId={user.uid} darkMode={darkMode} categories={categories} />}
-          {activeTab === 'advisor' && <FinanceAdvisorView movements={movements} accounts={accounts} goals={goals} darkMode={darkMode} plan={userProfile?.plan || 'basic'} />}
+          {activeTab === 'advisor' && <FinanceAdvisorView movements={movements} accounts={accounts} goals={goals} darkMode={darkMode} plan={userProfile?.plan || 'basic'} userProfile={userProfile} />}
           {activeTab === 'accounts' && <AccountsView accounts={accounts} userId={user.uid} darkMode={darkMode} />}
           {activeTab === 'goals' && <GoalsView goals={goals} userId={user.uid} darkMode={darkMode} />}
         </AnimatePresence>
       </main>
 
       {/* Floating Action Button */}
-      <motion.button 
-        key={buttonAnimateKey}
-        onClick={() => setIsMovementModalOpen(true)}
-        animate={buttonAnimateKey > 0 ? {
-          scale: [1, 1.2, 1],
-          rotate: [0, 15, -15, 0]
-        } : {}}
-        transition={{ duration: 0.5 }}
-        className={cn(
-          "fixed bottom-24 right-5 w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white z-40",
-          darkMode ? "shadow-lg shadow-indigo-500/20" : "shadow-lg shadow-indigo-200"
-        )}
-      >
-        <Plus className="w-7 h-7" />
-      </motion.button>
+      {activeTab !== 'advisor' && (
+        <motion.button 
+          key={buttonAnimateKey}
+          onClick={() => setIsMovementModalOpen(true)}
+          animate={buttonAnimateKey > 0 ? {
+            scale: [1, 1.2, 1],
+            rotate: [0, 15, -15, 0]
+          } : {}}
+          transition={{ duration: 0.5 }}
+          className={cn(
+            "fixed bottom-24 right-5 w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white z-40",
+            darkMode ? "shadow-lg shadow-indigo-500/20" : "shadow-lg shadow-indigo-200"
+          )}
+        >
+          <Plus className="w-7 h-7" />
+        </motion.button>
+      )}
 
       {/* Bottom Navigation */}
       <nav className={cn(
@@ -1534,7 +1535,7 @@ function SettingsModal({
                     darkMode ? "bg-indigo-600 text-white" : "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20"
                   )}
                 >
-                  {deferredPrompt ? 'Instalar' : '¿Cómo?'}
+                  Instalar
                 </button>
               </div>
             </div>
@@ -2314,7 +2315,7 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
   );
 }
 
-function FinanceAdvisorView({ movements, accounts, goals, darkMode, plan }: { movements: Movement[], accounts: Account[], goals: Goal[], darkMode: boolean, plan: 'basic' | 'premium' }) {
+function FinanceAdvisorView({ movements, accounts, goals, darkMode, plan, userProfile }: { movements: Movement[], accounts: Account[], goals: Goal[], darkMode: boolean, plan: 'basic' | 'premium', userProfile: UserProfile | null }) {
   const [messages, setMessages] = useState<{ role: 'user' | 'model', text: string }[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -2341,7 +2342,8 @@ function FinanceAdvisorView({ movements, accounts, goals, darkMode, plan }: { mo
     setIsTyping(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const apiKey = (plan === 'premium' && userProfile?.geminiApiKey) ? userProfile.geminiApiKey : process.env.GEMINI_API_KEY!;
+      const ai = new GoogleGenAI({ apiKey });
       
       const prompt = `Eres un asesor financiero experto para la app "Finanzas Mil pro". 
       Contexto del usuario: ${statsSummary}
@@ -2774,6 +2776,198 @@ function QuickActionModal({
   );
 }
 
+function SummaryTableModal({ 
+  isOpen, 
+  onClose, 
+  movements, 
+  categories, 
+  darkMode, 
+  type 
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  movements: Movement[], 
+  categories: Category[], 
+  darkMode: boolean, 
+  type: MovementType 
+}) {
+  if (!isOpen) return null;
+
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+
+  // Group days by week
+  const weeks: Date[][] = [];
+  monthDays.forEach(day => {
+    const weekIndex = getWeekOfMonth(day) - 1;
+    if (!weeks[weekIndex]) weeks[weekIndex] = [];
+    weeks[weekIndex].push(day);
+  });
+
+  // Filter movements for current month and type
+  const currentMovements = movements.filter(m => {
+    const d = parseISO(m.date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && m.type === type;
+  });
+
+  // Get unique categories in these movements
+  const usedCategoryIds = Array.from(new Set(currentMovements.map(m => m.categoryId)));
+  const usedCategories = usedCategoryIds.map(id => categories.find(c => c.id === id)).filter(Boolean) as Category[];
+
+  const getAmountForDayAndCategory = (day: Date, categoryId: string) => {
+    return currentMovements
+      .filter(m => isSameDay(parseISO(m.date), day) && m.categoryId === categoryId)
+      .reduce((sum, m) => sum + m.amount, 0);
+  };
+
+  const dayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
+        >
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className={cn(
+              "w-full max-w-5xl max-h-[90vh] rounded-3xl overflow-hidden flex flex-col",
+              darkMode ? "glass-card border-zinc-800/50" : "glass-card-light border-slate-100"
+            )}
+          >
+            <div className="p-6 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+              <h2 className={cn("text-xl font-black font-display uppercase tracking-widest", darkMode ? "text-white" : "text-slate-900")}>
+                {type === 'expense' ? 'Gastos' : 'Ingresos'} {format(now, 'MMMM', { locale: es }).toUpperCase()}
+              </h2>
+              <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-6 scrollbar-thin">
+              <div className="min-w-[800px] space-y-8">
+                {weeks.map((weekDays, weekIdx) => {
+                  const weekTotal = weekDays.reduce((sum, day) => {
+                    return sum + currentMovements.filter(m => isSameDay(parseISO(m.date), day)).reduce((s, m) => s + m.amount, 0);
+                  }, 0);
+
+                  return (
+                    <div key={weekIdx} className="space-y-0">
+                      <table className="w-full border-collapse text-[10px] font-bold">
+                        <thead>
+                          <tr className={cn(
+                            "text-white",
+                            type === 'expense' 
+                              ? (darkMode ? "bg-rose-600" : "bg-rose-700") 
+                              : (darkMode ? "bg-emerald-600" : "bg-emerald-700")
+                          )}>
+                            <th className="border border-white/20 p-3 text-left w-32 uppercase tracking-tighter">DESCRIPCION</th>
+                            {dayNames.map(name => (
+                              <th key={name} className="border border-white/20 p-3 uppercase tracking-tighter">{name}</th>
+                            ))}
+                            <th className="border border-white/20 p-3 uppercase w-24 bg-black/30">TOTAL</th>
+                          </tr>
+                          <tr className={cn(
+                            darkMode ? "bg-zinc-800 text-slate-300" : "bg-slate-200 text-slate-700"
+                          )}>
+                            <th className="border border-slate-300 dark:border-zinc-700 p-1.5"></th>
+                            {dayNames.map((_, i) => {
+                              const dayInWeek = weekDays.find(d => getDay(d) === i);
+                              return (
+                                <th key={i} className={cn(
+                                  "border border-slate-300 dark:border-zinc-700 p-1.5 text-center font-black text-sm",
+                                  dayInWeek && (darkMode ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-700")
+                                )}>
+                                  {dayInWeek ? format(dayInWeek, 'd') : ''}
+                                </th>
+                              );
+                            })}
+                            <th className="border border-slate-300 dark:border-zinc-700 p-1.5 bg-black/10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {usedCategories.map(cat => {
+                            const rowTotal = weekDays.reduce((sum, day) => sum + getAmountForDayAndCategory(day, cat.id), 0);
+                            if (rowTotal === 0) return null;
+
+                            return (
+                              <tr key={cat.id} className={darkMode ? "hover:bg-zinc-800/30" : "hover:bg-slate-50"}>
+                                <td className={cn(
+                                  "border border-slate-200 dark:border-zinc-800 p-2 font-black uppercase tracking-tighter",
+                                  darkMode ? "bg-zinc-900/30 text-slate-300" : "bg-slate-50/50 text-slate-600"
+                                )}>
+                                  {cat.name}
+                                </td>
+                                {dayNames.map((_, i) => {
+                                  const dayInWeek = weekDays.find(d => getDay(d) === i);
+                                  const amount = dayInWeek ? getAmountForDayAndCategory(dayInWeek, cat.id) : 0;
+                                  return (
+                                    <td key={i} className="border border-slate-200 dark:border-zinc-800 p-2 text-center font-display text-xs">
+                                      {amount > 0 ? `S/ ${amount.toLocaleString()}` : ''}
+                                    </td>
+                                  );
+                                })}
+                                <td className={cn(
+                                  "border border-slate-200 dark:border-zinc-800 p-2 text-center font-black font-display text-xs",
+                                  type === 'expense' ? "text-rose-500 bg-rose-500/5" : "text-emerald-500 bg-emerald-500/5"
+                                )}>
+                                  S/ {rowTotal.toLocaleString()}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          <tr className={cn(
+                            "font-black",
+                            darkMode ? "bg-zinc-900 text-slate-200" : "bg-slate-200 text-slate-700"
+                          )}>
+                            <td className="border border-slate-300 dark:border-zinc-700 p-2 uppercase tracking-widest text-indigo-500">SUBTOTAL</td>
+                            {dayNames.map((_, i) => {
+                              const dayInWeek = weekDays.find(d => getDay(d) === i);
+                              const dayTotal = dayInWeek ? currentMovements.filter(m => isSameDay(parseISO(m.date), dayInWeek)).reduce((s, m) => s + m.amount, 0) : 0;
+                              return (
+                                <td key={i} className="border border-slate-300 dark:border-zinc-700 p-2 text-center font-display text-xs">
+                                  {dayTotal > 0 ? `S/ ${dayTotal.toLocaleString()}` : ''}
+                                </td>
+                              );
+                            })}
+                            <td className={cn(
+                              "border border-slate-300 dark:border-zinc-700 p-2 text-center font-display text-sm",
+                              type === 'expense' ? "text-rose-600 bg-rose-600/10" : "text-emerald-600 bg-emerald-600/10"
+                            )}>
+                              S/ {weekTotal.toLocaleString()}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+                
+                <div className={cn(
+                  "p-4 rounded-2xl flex items-center justify-between",
+                  darkMode ? "bg-indigo-900/20 border border-indigo-500/20" : "bg-amber-500 border border-amber-600"
+                )}>
+                  <span className={cn("text-lg font-black uppercase tracking-widest", darkMode ? "text-indigo-400" : "text-white")}>TOTAL GENERAL</span>
+                  <span className={cn("text-2xl font-black font-display", darkMode ? "text-white" : "text-white")}>
+                    S/ {currentMovements.reduce((s, m) => s + m.amount, 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function DashboardView({ 
   movements, 
   accounts, 
@@ -2786,7 +2980,8 @@ function DashboardView({
   stats, 
   setActiveTab, 
   onAddMovement, 
-  onDeleteMovement 
+  onDeleteMovement,
+  deferredPrompt
 }: { 
   movements: Movement[], 
   accounts: Account[], 
@@ -2799,7 +2994,8 @@ function DashboardView({
   stats: DashboardStats, 
   setActiveTab: (tab: string) => void, 
   onAddMovement: (type?: MovementType) => void, 
-  onDeleteMovement?: (m: Movement) => void 
+  onDeleteMovement?: (m: Movement) => void,
+  deferredPrompt: any
 }) {
   const [isContributeModalOpen, setIsContributeModalOpen] = useState(false);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
@@ -2809,6 +3005,7 @@ function DashboardView({
   const [aiInput, setAiInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [summaryModal, setSummaryModal] = useState<{ open: boolean, type: MovementType }>({ open: false, type: 'expense' });
 
   const handleQuickExpense = async (amount: number, categoryName: string) => {
     if (accounts.length === 0) {
@@ -2855,8 +3052,10 @@ function DashboardView({
   };
 
   const handleAiParse = async () => {
-    if (!aiInput.trim() || !userProfile?.geminiApiKey) {
-      if (!userProfile?.geminiApiKey) setAiError('Configura tu Gemini API Key en Ajustes');
+    const apiKey = userProfile?.geminiApiKey || process.env.GEMINI_API_KEY;
+    
+    if (!aiInput.trim() || !apiKey) {
+      if (!apiKey) setAiError('Configura tu Gemini API Key en Ajustes');
       return;
     }
 
@@ -2864,7 +3063,7 @@ function DashboardView({
     setAiError('');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: userProfile.geminiApiKey });
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `Analiza este texto de gasto y devuelve un JSON con: amount (número), category (nombre de categoría), note (opcional). 
       Categorías disponibles: ${categories.map(c => c.name).join(', ')}. 
       Texto: "${aiInput}"`;
@@ -2918,6 +3117,46 @@ function DashboardView({
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6 pb-32"
     >
+      {/* Install App Banner */}
+      {!window.matchMedia('(display-mode: standalone)').matches && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={cn(
+            "p-4 rounded-[2.5rem] border flex items-center justify-between gap-4 transition-all duration-500 mb-2",
+            darkMode ? "bg-indigo-600/20 border-indigo-500/30" : "bg-indigo-50 border-indigo-100"
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+              <Smartphone className="w-6 h-6" />
+            </div>
+            <div>
+              <p className={cn("text-xs font-black uppercase tracking-tight", darkMode ? "text-white" : "text-slate-900")}>Instalar App</p>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">Acceso directo en tu inicio</p>
+            </div>
+          </div>
+          <button 
+            onClick={async () => {
+              if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                  console.log('User accepted the install prompt');
+                }
+              } else {
+                alert('Para instalar: \n1. Toca el botón de compartir \n2. Selecciona "Añadir a pantalla de inicio"');
+              }
+            }}
+            className={cn(
+              "px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95",
+              darkMode ? "bg-indigo-600 text-white" : "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20"
+            )}
+          >
+            Instalar
+          </button>
+        </motion.div>
+      )}
       {/* Upcoming Payments - MOVED TO TOP */}
       {recurringPayments.length > 0 && recurringPayments.some(p => !p.isPaid) && (
         <section className="space-y-4">
@@ -2982,14 +3221,30 @@ function DashboardView({
           "p-4 rounded-3xl border transition-all duration-300",
           darkMode ? "glass-card border-emerald-500/20 bg-emerald-500/5" : "bg-emerald-50 border-emerald-100"
         )}>
-          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Ingresos Hoy</p>
+          <div className="flex justify-between items-start mb-1">
+            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Ingresos Hoy</p>
+            <button 
+              onClick={() => setSummaryModal({ open: true, type: 'income' })}
+              className="p-1 rounded-lg hover:bg-emerald-500/10 transition-colors"
+            >
+              <Table className="w-3.5 h-3.5 text-emerald-500/50 hover:text-emerald-500" />
+            </button>
+          </div>
           <p className="text-xl font-black font-display tracking-tighter text-emerald-500">S/ {stats.dailyIncome.toLocaleString()}</p>
         </div>
         <div className={cn(
           "p-4 rounded-3xl border transition-all duration-300",
           darkMode ? "glass-card border-rose-500/20 bg-rose-500/5" : "bg-rose-50 border-rose-100"
         )}>
-          <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-1">Gastos Hoy</p>
+          <div className="flex justify-between items-start mb-1">
+            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Gastos Hoy</p>
+            <button 
+              onClick={() => setSummaryModal({ open: true, type: 'expense' })}
+              className="p-1 rounded-lg hover:bg-rose-500/10 transition-colors"
+            >
+              <Table className="w-3.5 h-3.5 text-rose-500/50 hover:text-rose-500" />
+            </button>
+          </div>
           <p className="text-xl font-black font-display tracking-tighter text-rose-500">S/ {stats.dailyExpense.toLocaleString()}</p>
         </div>
       </section>
@@ -3106,6 +3361,16 @@ function DashboardView({
         userId={userProfile?.id || ''}
         editingAction={editingQuickAction}
       />
+
+      <SummaryTableModal 
+        isOpen={summaryModal.open}
+        onClose={() => setSummaryModal({ ...summaryModal, open: false })}
+        movements={movements}
+        categories={categories}
+        darkMode={darkMode}
+        type={summaryModal.type}
+      />
+
       {/* Hero Balance Section */}
       <section className="relative group">
         <div className={cn(
@@ -3126,12 +3391,28 @@ function DashboardView({
             </h2>
             <div className="flex items-center gap-6 mt-3">
               <div>
-                <p className={cn("text-[9px] font-black uppercase tracking-widest mb-1", darkMode ? "text-indigo-100/60" : "text-slate-400")}>Ingresos</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className={cn("text-[9px] font-black uppercase tracking-widest", darkMode ? "text-indigo-100/60" : "text-slate-400")}>Ingresos</p>
+                  <button 
+                    onClick={() => setSummaryModal({ open: true, type: 'income' })}
+                    className="p-1 rounded-lg hover:bg-emerald-500/10 transition-colors"
+                  >
+                    <Table className={cn("w-3 h-3", darkMode ? "text-emerald-400/50 hover:text-emerald-400" : "text-emerald-500/50 hover:text-emerald-500")} />
+                  </button>
+                </div>
                 <p className="text-lg font-black font-display text-emerald-400">+S/ {stats.monthlyIncome.toLocaleString()}</p>
               </div>
               <div className={cn("w-px h-8", darkMode ? "bg-white/10" : "bg-slate-100")}></div>
               <div>
-                <p className={cn("text-[9px] font-black uppercase tracking-widest mb-1", darkMode ? "text-indigo-100/60" : "text-slate-400")}>Gastos</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className={cn("text-[9px] font-black uppercase tracking-widest", darkMode ? "text-indigo-100/60" : "text-slate-400")}>Gastos</p>
+                  <button 
+                    onClick={() => setSummaryModal({ open: true, type: 'expense' })}
+                    className="p-1 rounded-lg hover:bg-rose-500/10 transition-colors"
+                  >
+                    <Table className={cn("w-3 h-3", darkMode ? "text-rose-300/50 hover:text-rose-300" : "text-rose-500/50 hover:text-rose-500")} />
+                  </button>
+                </div>
                 <p className={cn("text-lg font-black font-display", darkMode ? "text-rose-300" : "text-rose-500")}>-S/ {stats.monthlyExpense.toLocaleString()}</p>
               </div>
             </div>
@@ -3600,6 +3881,33 @@ function StatsView({ movements, categories, darkMode }: { movements: Movement[],
     return last6Months;
   }, [movements]);
 
+  const weeklyExpenses = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const weeks = [
+      { name: 'Día 1-7', total: 0 },
+      { name: 'Día 8-14', total: 0 },
+      { name: 'Día 15-21', total: 0 },
+      { name: 'Día 22+', total: 0 }
+    ];
+
+    movements
+      .filter(m => m.type === 'expense')
+      .forEach(m => {
+        const date = parseISO(m.date);
+        if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+          const day = date.getDate();
+          if (day <= 7) weeks[0].total += m.amount;
+          else if (day <= 14) weeks[1].total += m.amount;
+          else if (day <= 21) weeks[2].total += m.amount;
+          else weeks[3].total += m.amount;
+        }
+      });
+    return weeks;
+  }, [movements]);
+
   const totalIncome = useMemo(() => movements.filter(m => m.type === 'income').reduce((s, m) => s + m.amount, 0), [movements]);
   const totalExpense = useMemo(() => movements.filter(m => m.type === 'expense').reduce((s, m) => s + m.amount, 0), [movements]);
   const balance = totalIncome - totalExpense;
@@ -3693,6 +4001,43 @@ function StatsView({ movements, categories, darkMode }: { movements: Movement[],
               />
             </RePieChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Weekly Expenses Section */}
+      <div className={cn(
+        "p-6 rounded-3xl border transition-all duration-300",
+        darkMode ? "glass-card border-slate-800/50" : "glass-card-light border-slate-100 shadow-sm"
+      )}>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="font-bold text-slate-400 uppercase text-[10px] tracking-widest">Gastos por Semana (Mes Actual)</h3>
+          <CalendarIcon className="w-4 h-4 text-indigo-500" />
+        </div>
+        <div className="space-y-4">
+          {weeklyExpenses.map((week, idx) => {
+            const maxTotal = Math.max(...weeklyExpenses.map(w => w.total), 1);
+            const percentage = (week.total / maxTotal) * 100;
+            return (
+              <div key={week.name} className="space-y-1.5">
+                <div className="flex justify-between items-end">
+                  <span className={cn("text-[10px] font-black uppercase tracking-widest", darkMode ? "text-slate-400" : "text-slate-500")}>
+                    {week.name}
+                  </span>
+                  <span className={cn("text-xs font-black font-display tracking-tight", darkMode ? "text-white" : "text-slate-900")}>
+                    S/ {week.total.toLocaleString()}
+                  </span>
+                </div>
+                <div className={cn("h-2 rounded-full overflow-hidden", darkMode ? "bg-zinc-900" : "bg-slate-100")}>
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${percentage}%` }}
+                    transition={{ duration: 0.8, delay: idx * 0.1 }}
+                    className="h-full bg-indigo-600 rounded-full"
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

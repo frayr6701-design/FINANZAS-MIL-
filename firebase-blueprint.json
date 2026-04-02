@@ -100,6 +100,35 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["username", "password"]
+    },
+    "QuickAction": {
+      "title": "QuickAction",
+      "description": "Quick expense action",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "amount": { "type": "number" },
+        "icon": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["label", "amount", "icon", "userId"]
+    },
+    "RecurringPayment": {
+      "title": "RecurringPayment",
+      "description": "Recurring payment reminder",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "amount": { "type": "number" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "frequency": { "type": "string", "enum": ["monthly", "weekly"] },
+        "categoryId": { "type": "string" },
+        "userId": { "type": "string" },
+        "isPaid": { "type": "boolean" }
+      },
+      "required": ["name", "amount", "dueDate", "frequency", "categoryId", "userId", "isPaid"]
     }
   },
   "firestore": {
@@ -109,6 +138,8 @@
     "/movements/{movementId}": { "schema": "Movement", "description": "Financial movements" },
     "/goals/{goalId}": { "schema": "Goal", "description": "Financial goals" },
     "/weeklyBudgets/{budgetId}": { "schema": "WeeklyBudget", "description": "Weekly budgets" },
-    "/manual_users/{userId}": { "schema": "ManualUser", "description": "Manual authentication users" }
+    "/manual_users/{userId}": { "schema": "ManualUser", "description": "Manual authentication users" },
+    "/quickActions/{actionId}": { "schema": "QuickAction", "description": "Quick expense actions" },
+    "/recurringPayments/{paymentId}": { "schema": "RecurringPayment", "description": "Recurring payments" }
   }
 }

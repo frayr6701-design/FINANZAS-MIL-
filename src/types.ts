@@ -7,6 +7,8 @@ export interface UserProfile {
   email: string;
   photoURL?: string;
   plan?: 'basic' | 'premium';
+  geminiApiKey?: string;
+  openaiApiKey?: string;
 }
 
 export interface Account {
@@ -64,4 +66,24 @@ export interface DashboardStats {
   weeklyExpense: number;
   monthlyIncome: number;
   monthlyExpense: number;
+  weeklyCategoryExpenses: { categoryId: string; name: string; amount: number }[];
+}
+
+export interface RecurringPayment {
+  id?: string;
+  name: string;
+  amount: number;
+  dueDate: string; // ISO date string for the next occurrence
+  frequency: 'monthly' | 'weekly';
+  categoryId: string;
+  userId: string;
+  isPaid: boolean;
+}
+
+export interface QuickAction {
+  id: string;
+  label: string;
+  amount: number;
+  icon: string;
+  userId: string;
 }

@@ -5,15 +5,15 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", sans-serif;
 
-  --color-fin-bg: #0B0F1A;
-  --color-fin-surface: #121829;
+  --color-fin-bg: #000000;
+  --color-fin-surface: #000000;
   --color-fin-primary: #6C63FF;
   --color-fin-secondary: #00D4FF;
   --color-fin-income: #22C55E;
   --color-fin-expense: #EF4444;
-  --color-fin-text-main: #E5E7EB;
-  --color-fin-text-sub: #9CA3AF;
-  --color-fin-border: #1F2937;
+  --color-fin-text-main: #FFFFFF;
+  --color-fin-text-sub: #A1A1AA;
+  --color-fin-border: #18181B;
 
   --radius-3xl: 1.5rem;
   --radius-4xl: 2rem;
@@ -26,11 +26,65 @@
   }
   
   body {
-    @apply font-sans antialiased bg-fin-bg text-fin-text-main selection:bg-fin-primary/30 selection:text-fin-text-main;
+    @apply font-sans antialiased selection:bg-fin-primary/30 selection:text-fin-text-main;
     letter-spacing: -0.01em;
   }
   
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-tight;
+  }
+}
+
+@layer utilities {
+  .bg-mesh-dark {
+    background-color: #000000;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(108, 99, 255, 0.12) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(0, 212, 255, 0.1) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(108, 99, 255, 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(0, 212, 255, 0.12) 0px, transparent 50%);
+  }
+
+  .bg-mesh-light {
+    background-color: #F8FAFC;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(108, 99, 255, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(0, 212, 255, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(108, 99, 255, 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(0, 212, 255, 0.05) 0px, transparent 50%);
+  }
+
+  .glass-card {
+    @apply backdrop-blur-3xl border;
+    background: rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-card-light {
+    @apply backdrop-blur-xl border;
+    background: rgba(255, 255, 255, 0.7);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(108, 99, 255, 0.2);
+    border-radius: 10px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(108, 99, 255, 0.4);
   }
 }

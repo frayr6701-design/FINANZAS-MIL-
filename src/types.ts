@@ -66,6 +66,8 @@ export interface DashboardStats {
   weeklyExpense: number;
   monthlyIncome: number;
   monthlyExpense: number;
+  lastMonthIncome: number;
+  lastMonthExpense: number;
   weeklyCategoryExpenses: { categoryId: string; name: string; amount: number }[];
 }
 

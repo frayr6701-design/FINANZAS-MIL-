@@ -7,7 +7,7 @@
 
   --color-fin-bg: #000000;
   --color-fin-surface: #000000;
-  --color-fin-primary: #6C63FF;
+  --color-fin-primary: #a855f7;
   --color-fin-secondary: #00D4FF;
   --color-fin-income: #22C55E;
   --color-fin-expense: #EF4444;
@@ -39,19 +39,19 @@
   .bg-mesh-dark {
     background-color: #000000;
     background-image: 
-      radial-gradient(at 0% 0%, rgba(108, 99, 255, 0.12) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, rgba(0, 212, 255, 0.1) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(108, 99, 255, 0.1) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, rgba(0, 212, 255, 0.12) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, rgba(168, 85, 247, 0.12) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(126, 34, 206, 0.1) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(126, 34, 206, 0.12) 0px, transparent 50%);
   }
 
   .bg-mesh-light {
     background-color: #F8FAFC;
     background-image: 
-      radial-gradient(at 0% 0%, rgba(108, 99, 255, 0.05) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, rgba(0, 212, 255, 0.05) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(108, 99, 255, 0.05) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, rgba(0, 212, 255, 0.05) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, rgba(168, 85, 247, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(126, 34, 206, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(126, 34, 206, 0.05) 0px, transparent 50%);
   }
 
   .glass-card {
@@ -81,10 +81,10 @@
     background: transparent;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(108, 99, 255, 0.2);
+    background: rgba(168, 85, 247, 0.2);
     border-radius: 10px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: rgba(108, 99, 255, 0.4);
+    background: rgba(168, 85, 247, 0.4);
   }
 }

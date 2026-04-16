@@ -200,6 +200,9 @@ export default function App() {
   }, [darkMode]);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
+  const [calendarTargetDate, setCalendarTargetDate] = useState(new Date());
+  const [calendarViewingDate, setCalendarViewingDate] = useState(new Date());
+
   // Data state
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -509,6 +512,15 @@ export default function App() {
     const weeklyIncome = weeklyMovements.filter(m => m.type === 'income').reduce((sum, m) => sum + m.amount, 0);
     const weeklyExpense = weeklyMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + m.amount, 0);
 
+    const lastMonthStart = startOfMonth(subMonths(new Date(), 1));
+    const lastMonthEnd = endOfMonth(subMonths(new Date(), 1));
+    const lastMonthMovements = movements.filter(m => {
+      const d = parseISO(m.date);
+      return d >= lastMonthStart && d <= lastMonthEnd;
+    });
+    const lastMonthIncome = lastMonthMovements.filter(m => m.type === 'income').reduce((sum, m) => sum + m.amount, 0);
+    const lastMonthExpense = lastMonthMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + m.amount, 0);
+
     // Top category
     const catExpenses: Record<string, number> = {};
     movements.filter(m => m.type === 'expense').forEach(m => {
@@ -536,13 +548,13 @@ export default function App() {
       };
     }).filter(cat => cat.amount > 0).sort((a, b) => b.amount - a.amount);
 
-    return { totalBalance, dailyIncome, dailyExpense, topCategory, weeklyIncome, weeklyExpense, monthlyIncome, monthlyExpense, weeklyCategoryExpenses };
+    return { totalBalance, dailyIncome, dailyExpense, topCategory, weeklyIncome, weeklyExpense, monthlyIncome, monthlyExpense, lastMonthIncome, lastMonthExpense, weeklyCategoryExpenses };
   }, [accounts, movements, categories]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-black">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-600"></div>
       </div>
     );
   }
@@ -564,7 +576,7 @@ export default function App() {
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className={cn(
           "absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] opacity-20 animate-pulse",
-          darkMode ? "bg-indigo-600" : "bg-indigo-400"
+          darkMode ? "bg-purple-600" : "bg-purple-400"
         )} />
         <div className={cn(
           "absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] opacity-20 animate-pulse",
@@ -580,7 +592,7 @@ export default function App() {
             exit={{ y: -100, opacity: 0 }}
             className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-xs px-4"
           >
-            <div className="bg-indigo-600 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/20 backdrop-blur-lg">
+            <div className="bg-purple-600 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/20 backdrop-blur-lg">
               <div className="bg-white/20 p-2 rounded-xl">
                 <TrendingUp className="w-5 h-5" />
               </div>
@@ -599,12 +611,12 @@ export default function App() {
       )}>
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-500/20">
+            <div className="w-10 h-10 bg-purple-600 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/20">
               <Wallet className="text-white w-6 h-6" />
             </div>
             <div>
               <h1 className={cn("text-xl font-extrabold font-display leading-tight tracking-tighter", darkMode ? "text-white" : "text-slate-900")}>
-                Finanzas Mil <span className="text-indigo-600 italic">pro</span>
+                Finanzas Mil <span className="text-purple-600 italic">pro</span>
               </h1>
               <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em]">Tu Asesor Personal</p>
             </div>
@@ -643,7 +655,7 @@ export default function App() {
               title="Ajustes"
               className={cn(
                 "p-3 rounded-2xl transition-all active:scale-95",
-                darkMode ? "bg-black text-indigo-400 hover:bg-zinc-900" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                darkMode ? "bg-black text-purple-400 hover:bg-zinc-900" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
               )}
             >
               <Settings className="w-5 h-5" />
@@ -666,6 +678,11 @@ export default function App() {
               darkMode={darkMode} 
               stats={stats} 
               setActiveTab={setActiveTab} 
+              onNavigateToCalendar={(date, viewDate) => {
+                setCalendarTargetDate(date || new Date());
+                setCalendarViewingDate(viewDate || date || new Date());
+                setActiveTab('calendar');
+              }}
               onAddMovement={(type) => {
                 setMovementModalType(type || 'expense');
                 setIsMovementModalOpen(true);
@@ -674,10 +691,22 @@ export default function App() {
               deferredPrompt={deferredPrompt}
             />
           )}
-          {activeTab === 'calendar' && <CalendarView movements={movements} accounts={accounts} categories={categories} darkMode={darkMode} onDelete={handleDeleteMovement} />}
+          {activeTab === 'calendar' && (
+            <CalendarView 
+              movements={movements} 
+              accounts={accounts} 
+              categories={categories} 
+              darkMode={darkMode} 
+              onDelete={handleDeleteMovement}
+              selectedDate={calendarTargetDate}
+              setSelectedDate={setCalendarTargetDate}
+              viewingDate={calendarViewingDate}
+              setViewingDate={setCalendarViewingDate}
+            />
+          )}
           {activeTab === 'stats' && <StatsView movements={movements} categories={categories} darkMode={darkMode} />}
           {activeTab === 'budget' && <WeeklyBudgetView budget={weeklyBudget} userId={user.uid} darkMode={darkMode} categories={categories} />}
-          {activeTab === 'advisor' && <FinanceAdvisorView movements={movements} accounts={accounts} goals={goals} darkMode={darkMode} plan={userProfile?.plan || 'basic'} userProfile={userProfile} />}
+          {activeTab === 'advisor' && <FinanceAdvisorView movements={movements} accounts={accounts} goals={goals} categories={categories} darkMode={darkMode} plan={userProfile?.plan || 'basic'} userProfile={userProfile} />}
           {activeTab === 'accounts' && <AccountsView accounts={accounts} userId={user.uid} darkMode={darkMode} />}
           {activeTab === 'goals' && <GoalsView goals={goals} userId={user.uid} darkMode={darkMode} />}
         </AnimatePresence>
@@ -694,8 +723,8 @@ export default function App() {
           } : {}}
           transition={{ duration: 0.5 }}
           className={cn(
-            "fixed bottom-24 right-5 w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white z-40",
-            darkMode ? "shadow-lg shadow-indigo-500/20" : "shadow-lg shadow-indigo-200"
+            "fixed bottom-24 right-5 w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white z-40",
+            darkMode ? "shadow-lg shadow-purple-500/20" : "shadow-lg shadow-purple-200"
           )}
         >
           <Plus className="w-7 h-7" />
@@ -835,7 +864,7 @@ function NavButton({ active, onClick, icon: Icon, label, darkMode }: { active: b
       className={cn(
         "flex flex-col items-center gap-1 transition-all duration-300 relative py-0.5",
         active 
-          ? "text-indigo-500 scale-105" 
+          ? "text-purple-500 scale-105" 
           : darkMode ? "text-slate-500 hover:text-slate-400" : "text-slate-400 hover:text-slate-600"
       )}
     >
@@ -844,7 +873,7 @@ function NavButton({ active, onClick, icon: Icon, label, darkMode }: { active: b
       {active && (
         <motion.div 
           layoutId="nav-active"
-          className="absolute -bottom-2 w-1 h-1 bg-indigo-500 rounded-full"
+          className="absolute -bottom-2 w-1 h-1 bg-purple-500 rounded-full"
         />
       )}
     </button>
@@ -866,12 +895,12 @@ function MovementItem({ movement, categories, accounts, darkMode, onDelete }: { 
       className={cn(
         "p-3 rounded-2xl border flex items-center justify-between transition-all duration-300 group relative overflow-hidden",
         darkMode 
-          ? "glass-card border-zinc-800/50 hover:bg-zinc-900/80 hover:border-indigo-500/30" 
-          : "glass-card-light border-slate-100 hover:border-indigo-100 shadow-sm hover:shadow-md"
+          ? "glass-card border-zinc-800/50 hover:bg-zinc-900/80 hover:border-purple-500/30" 
+          : "glass-card-light border-slate-100 hover:border-purple-100 shadow-sm hover:shadow-md"
       )}
     >
       {/* Subtle glow effect on hover */}
-      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/5 to-indigo-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/5 to-purple-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div className="flex items-center gap-3">
         <div className={cn(
           "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 shadow-sm group-hover:rotate-12",
@@ -889,7 +918,7 @@ function MovementItem({ movement, categories, accounts, darkMode, onDelete }: { 
           {movement.note && (
             <div className={cn(
               "flex items-center gap-1 px-2 py-0.5 rounded-lg w-fit mb-1",
-              darkMode ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "bg-indigo-50 text-indigo-600 border border-indigo-100"
+              darkMode ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" : "bg-purple-50 text-purple-600 border border-purple-100"
             )}>
               <MessageSquare className="w-2.5 h-2.5" />
               <p className="text-[9px] font-bold italic truncate max-w-[120px]">
@@ -1025,14 +1054,14 @@ function LoginScreen({ onLogin }: { onLogin: (user: any) => void }) {
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center transition-colors duration-700 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[100px]"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[100px]"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[100px]"></div>
 
       <motion.div 
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-indigo-500/30 relative z-10"
+        className="w-20 h-20 bg-purple-600 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-purple-500/30 relative z-10"
       >
         <TrendingUp className="text-white w-10 h-10" />
       </motion.div>
@@ -1044,7 +1073,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: any) => void }) {
         className="relative z-10 w-full max-w-sm"
       >
         <h1 className="text-4xl font-extrabold font-display tracking-tighter text-slate-900 dark:text-white mb-2">
-          Finanzas Mil <span className="text-indigo-600">pro</span>
+          Finanzas Mil <span className="text-purple-600">pro</span>
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 max-w-xs mx-auto font-medium leading-relaxed">
           Gestiona tu libertad financiera con elegancia y precisión.
@@ -1061,7 +1090,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: any) => void }) {
                   placeholder="Ej. milner03" 
                   value={username} 
                   onChange={e => setUsername(e.target.value)} 
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-zinc-900 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-zinc-900 border-none rounded-xl text-sm focus:ring-2 focus:ring-purple-500 transition-all dark:text-white"
                   required 
                 />
               </div>
@@ -1076,7 +1105,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: any) => void }) {
                   placeholder="••••••••" 
                   value={password} 
                   onChange={e => setPassword(e.target.value)} 
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-zinc-900 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-zinc-900 border-none rounded-xl text-sm focus:ring-2 focus:ring-purple-500 transition-all dark:text-white"
                   required 
                 />
               </div>
@@ -1091,7 +1120,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: any) => void }) {
             <button 
               type="submit"
               disabled={isLoggingIn}
-              className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-70"
+              className="w-full py-3 bg-purple-600 text-white font-bold rounded-xl shadow-lg shadow-purple-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-70"
             >
               {isLoggingIn ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -1118,7 +1147,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: any) => void }) {
                 setIsRegistering(!isRegistering);
                 setError(null);
               }}
-              className="text-[11px] font-bold text-indigo-600 hover:underline"
+              className="text-[11px] font-bold text-purple-600 hover:underline"
             >
               {isRegistering ? 'Inicia Sesión' : 'Regístrate'}
             </button>
@@ -1278,7 +1307,7 @@ function SettingsModal({
         )}
       >
         {/* Decorative background blobs for modal */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto scrollbar-thin">
           <div className="flex items-center justify-between">
@@ -1307,7 +1336,7 @@ function SettingsModal({
                 darkMode ? "bg-zinc-900/50" : "bg-slate-50"
               )}>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                  <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
                     {userProfile?.name?.charAt(0) || 'U'}
                   </div>
                   <div className="flex-1">
@@ -1342,7 +1371,7 @@ function SettingsModal({
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-10 h-10 rounded-xl flex items-center justify-center",
-                    userProfile?.plan === 'premium' ? "bg-amber-500/10 text-amber-500" : "bg-indigo-500/10 text-indigo-500"
+                    userProfile?.plan === 'premium' ? "bg-amber-500/10 text-amber-500" : "bg-purple-500/10 text-purple-500"
                   )}>
                     {userProfile?.plan === 'premium' ? <Crown className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
                   </div>
@@ -1376,7 +1405,7 @@ function SettingsModal({
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-10 h-10 rounded-xl flex items-center justify-center",
-                    darkMode ? "bg-amber-500/10 text-amber-500" : "bg-indigo-500/10 text-indigo-500"
+                    darkMode ? "bg-amber-500/10 text-amber-500" : "bg-purple-500/10 text-purple-500"
                   )}>
                     {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                   </div>
@@ -1391,7 +1420,7 @@ function SettingsModal({
                   onClick={() => setDarkMode(!darkMode)}
                   className={cn(
                     "w-12 h-6 rounded-full relative transition-all",
-                    darkMode ? "bg-indigo-600" : "bg-slate-300"
+                    darkMode ? "bg-purple-600" : "bg-slate-300"
                   )}
                 >
                   <motion.div 
@@ -1415,7 +1444,7 @@ function SettingsModal({
               )}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-indigo-500" />
+                    <Sparkles className="w-4 h-4 text-purple-500" />
                     <span className={cn("text-xs font-bold", darkMode ? "text-white" : "text-slate-900")}>Gemini API Key</span>
                   </div>
                   {geminiStatus !== 'idle' && (
@@ -1443,7 +1472,7 @@ function SettingsModal({
                     disabled={isValidatingGemini}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all active:scale-95",
-                      darkMode ? "bg-zinc-800 text-indigo-400 hover:bg-zinc-700" : "bg-white text-indigo-600 border border-slate-100 shadow-sm"
+                      darkMode ? "bg-zinc-800 text-purple-400 hover:bg-zinc-700" : "bg-white text-purple-600 border border-slate-100 shadow-sm"
                     )}
                   >
                     {isValidatingGemini ? 'Validando...' : 'Guardar'}
@@ -1507,9 +1536,9 @@ function SettingsModal({
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-10 h-10 rounded-xl flex items-center justify-center",
-                    darkMode ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600"
+                    darkMode ? "bg-purple-500/10 text-purple-400" : "bg-purple-50 text-purple-600"
                   )}>
-                    <Smartphone className="w-5 h-5" />
+                    <Wallet className="w-5 h-5" />
                   </div>
                   <div>
                     <p className={cn("text-sm font-bold", darkMode ? "text-white" : "text-slate-900")}>
@@ -1532,7 +1561,7 @@ function SettingsModal({
                   }}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all active:scale-95",
-                    darkMode ? "bg-indigo-600 text-white" : "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20"
+                    darkMode ? "bg-purple-600 text-white" : "bg-purple-500 text-white shadow-lg shadow-purple-500/20"
                   )}
                 >
                   Instalar
@@ -1591,7 +1620,7 @@ function SettingsModal({
               disabled={isSaving}
               className={cn(
                 "flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2",
-                "bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                "bg-purple-600 text-white hover:bg-purple-700 shadow-lg shadow-purple-500/20 disabled:opacity-50"
               )}
             >
               {isSaving ? (
@@ -1697,7 +1726,7 @@ function MovementModal({ onClose, accounts, categories, userId, darkMode, onSucc
         )}
       >
         {/* Decorative background blobs for modal */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-black uppercase tracking-widest">Nuevo Movimiento</h2>
@@ -1726,14 +1755,14 @@ function MovementModal({ onClose, accounts, categories, userId, darkMode, onSucc
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Monto</label>
             <div className="relative group">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-indigo-500 transition-transform group-focus-within:scale-110">S/</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-purple-500 transition-transform group-focus-within:scale-110">S/</span>
               <input 
                 type="number" 
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
                 className={cn(
-                  "w-full border-none rounded-[1.5rem] py-4 pl-12 pr-6 text-3xl font-black font-display focus:ring-4 focus:ring-indigo-500/20 transition-all",
+                  "w-full border-none rounded-[1.5rem] py-4 pl-12 pr-6 text-3xl font-black font-display focus:ring-4 focus:ring-purple-500/20 transition-all",
                   darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                 )}
                 required
@@ -1750,7 +1779,7 @@ function MovementModal({ onClose, accounts, categories, userId, darkMode, onSucc
                 value={accountOriginId}
                 onChange={(e) => setAccountOriginId(e.target.value)}
                 className={cn(
-                  "w-full border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-indigo-500 transition-colors",
+                  "w-full border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-purple-500 transition-colors",
                   darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                 )}
               >
@@ -1766,7 +1795,7 @@ function MovementModal({ onClose, accounts, categories, userId, darkMode, onSucc
                   value={accountDestinationId}
                   onChange={(e) => setAccountDestinationId(e.target.value)}
                   className={cn(
-                    "w-full border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-indigo-500 transition-colors",
+                    "w-full border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-purple-500 transition-colors",
                     darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                   )}
                 >
@@ -1781,7 +1810,7 @@ function MovementModal({ onClose, accounts, categories, userId, darkMode, onSucc
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
                   className={cn(
-                    "w-full border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-indigo-500 transition-colors",
+                    "w-full border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-purple-500 transition-colors",
                     darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                   )}
                   required={type !== 'transfer'}
@@ -1796,7 +1825,7 @@ function MovementModal({ onClose, accounts, categories, userId, darkMode, onSucc
                     placeholder="Nombre de categoría + Enter"
                     autoFocus
                     className={cn(
-                      "w-full mt-2 border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-indigo-500 transition-colors",
+                      "w-full mt-2 border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-purple-500 transition-colors",
                       darkMode ? "bg-zinc-800 text-white" : "bg-slate-100 text-slate-900"
                     )}
                     onKeyDown={async (e) => {
@@ -1826,7 +1855,7 @@ function MovementModal({ onClose, accounts, categories, userId, darkMode, onSucc
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className={cn(
-                "w-full border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-indigo-500 transition-colors",
+                "w-full border-none rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-purple-500 transition-colors",
                 darkMode ? "bg-slate-800 text-white" : "bg-slate-50 text-slate-900"
               )}
               required
@@ -1844,7 +1873,7 @@ function MovementModal({ onClose, accounts, categories, userId, darkMode, onSucc
               placeholder="¿En qué gastaste? (Ej: Almuerzo con amigos, Pasaje a Lima...)"
               rows={2}
               className={cn(
-                "w-full border-none rounded-2xl py-4 px-5 text-sm font-medium focus:ring-4 focus:ring-indigo-500/20 transition-all resize-none",
+                "w-full border-none rounded-2xl py-4 px-5 text-sm font-medium focus:ring-4 focus:ring-purple-500/20 transition-all resize-none",
                 darkMode ? "bg-slate-800 text-white placeholder:text-slate-600" : "bg-slate-50 text-slate-900 placeholder:text-slate-400"
               )}
             />
@@ -1856,7 +1885,7 @@ function MovementModal({ onClose, accounts, categories, userId, darkMode, onSucc
               "w-full py-4 rounded-2xl font-extrabold text-base shadow-xl active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-3",
               type === 'expense' ? "bg-rose-600 text-white shadow-rose-500/20 hover:bg-rose-700" :
               type === 'income' ? "bg-emerald-600 text-white shadow-emerald-500/20 hover:bg-emerald-700" :
-              "bg-indigo-600 text-white shadow-indigo-500/20 hover:bg-indigo-700"
+              "bg-purple-600 text-white shadow-purple-500/20 hover:bg-purple-700"
             )}
           >
             {isSubmitting ? (
@@ -1985,9 +2014,9 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
         </div>
         <motion.div 
           whileTap={{ scale: 0.9 }}
-          className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20"
+          className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20"
         >
-          <ClipboardList className="w-6 h-6 text-indigo-600" />
+          <ClipboardList className="w-6 h-6 text-purple-600" />
         </motion.div>
       </div>
 
@@ -1999,7 +2028,7 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
           : "glass-card-light border-slate-100 shadow-xl shadow-slate-200/50"
       )}>
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-500/5 rounded-full blur-[80px] group-hover:bg-emerald-500/10 transition-colors duration-700"></div>
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-indigo-500/5 rounded-full blur-[60px]"></div>
+        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/5 rounded-full blur-[60px]"></div>
         
         <div className="relative z-10 space-y-4">
           <div className="flex items-center gap-2">
@@ -2074,7 +2103,7 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
             <h3 className={cn("font-black font-display text-lg tracking-tight", darkMode ? "text-white" : "text-slate-900")}>
               Distribución
             </h3>
-            <PieChart className="w-5 h-5 text-indigo-500 opacity-50" />
+            <PieChart className="w-5 h-5 text-purple-500 opacity-50" />
           </div>
           
           <div className="space-y-5">
@@ -2094,7 +2123,7 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
                     <motion.div 
                       initial={{ width: 0 }}
                       animate={{ width: `${percentage}%` }}
-                      className="h-full bg-indigo-500 rounded-full"
+                      className="h-full bg-purple-500 rounded-full"
                     />
                   </div>
                 </div>
@@ -2141,14 +2170,14 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
                 className={cn(
-                  "flex-1 py-4 px-5 rounded-2xl border font-bold text-sm transition-all focus:ring-4 focus:ring-indigo-500/10",
+                  "flex-1 py-4 px-5 rounded-2xl border font-bold text-sm transition-all focus:ring-4 focus:ring-purple-500/10",
                   darkMode ? "bg-zinc-900 border-zinc-800 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                 )}
               />
               <motion.button 
                 whileTap={{ scale: 0.9 }}
                 onClick={handleAddCategory}
-                className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20"
+                className="w-14 h-14 bg-purple-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20"
               >
                 <Plus className="w-6 h-6" />
               </motion.button>
@@ -2181,8 +2210,8 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
                 className={cn(
                   "px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
                   darkMode 
-                    ? "bg-zinc-900 border-zinc-800 text-slate-300 hover:bg-indigo-500/10 hover:border-indigo-500/30" 
-                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white hover:border-indigo-200 hover:shadow-md"
+                    ? "bg-zinc-900 border-zinc-800 text-slate-300 hover:bg-purple-500/10 hover:border-purple-500/30" 
+                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white hover:border-purple-200 hover:shadow-md"
                 )}
               >
                 {cat.name}
@@ -2200,7 +2229,7 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
                 value={expenseName}
                 onChange={(e) => setExpenseName(e.target.value)}
                 className={cn(
-                  "w-full py-4 px-6 rounded-2xl border font-bold text-sm transition-all focus:ring-4 focus:ring-indigo-500/10",
+                  "w-full py-4 px-6 rounded-2xl border font-bold text-sm transition-all focus:ring-4 focus:ring-purple-500/10",
                   darkMode ? "bg-zinc-900 border-zinc-800 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                 )}
               />
@@ -2212,7 +2241,7 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
                 value={expenseAmount}
                 onChange={(e) => setExpenseAmount(e.target.value)}
                 className={cn(
-                  "w-full py-4 px-4 rounded-2xl border font-black text-sm text-center transition-all focus:ring-4 focus:ring-indigo-500/10",
+                  "w-full py-4 px-4 rounded-2xl border font-black text-sm text-center transition-all focus:ring-4 focus:ring-purple-500/10",
                   darkMode ? "bg-zinc-900 border-zinc-800 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                 )}
               />
@@ -2225,8 +2254,8 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
             className={cn(
               "w-full py-5 rounded-[2rem] font-black text-xs shadow-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-4 group",
               darkMode 
-                ? "bg-indigo-600 text-white shadow-indigo-500/20 hover:bg-indigo-500" 
-                : "bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700"
+                ? "bg-purple-600 text-white shadow-purple-500/20 hover:bg-purple-500" 
+                : "bg-purple-600 text-white shadow-purple-200 hover:bg-purple-700"
             )}
           >
             <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-hover:rotate-90 transition-transform duration-500">
@@ -2246,7 +2275,7 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
           )}>
             Gastos Planificados
           </h3>
-          <span className="text-[10px] font-black text-indigo-500 bg-indigo-500/10 px-3 py-1 rounded-full uppercase tracking-widest">
+          <span className="text-[10px] font-black text-purple-500 bg-purple-500/10 px-3 py-1 rounded-full uppercase tracking-widest">
             {expenses.length} Items
           </span>
         </div>
@@ -2272,14 +2301,14 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
                 className={cn(
                   "p-6 rounded-[2rem] border flex items-center justify-between transition-all duration-300 group relative overflow-hidden",
                   darkMode 
-                    ? "glass-card border-slate-800/50 hover:border-indigo-500/30" 
-                    : "glass-card-light border-slate-100 shadow-md hover:shadow-xl hover:border-indigo-100"
+                    ? "glass-card border-slate-800/50 hover:border-purple-500/30" 
+                    : "glass-card-light border-slate-100 shadow-md hover:shadow-xl hover:border-purple-100"
                 )}
               >
                 <div className="flex items-center gap-5">
                   <div className={cn(
                     "w-14 h-14 rounded-2xl flex items-center justify-center transition-colors shadow-inner",
-                    darkMode ? "bg-slate-800 text-indigo-400" : "bg-indigo-50 text-indigo-600"
+                    darkMode ? "bg-slate-800 text-purple-400" : "bg-purple-50 text-purple-600"
                   )}>
                     <TrendingDown className="w-6 h-6" />
                   </div>
@@ -2288,7 +2317,7 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
                       {exp.name || "Sin nombre"}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[9px] font-black text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-md uppercase tracking-widest">
+                      <span className="text-[9px] font-black text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded-md uppercase tracking-widest">
                         {exp.category}
                       </span>
                     </div>
@@ -2315,7 +2344,7 @@ function WeeklyBudgetView({ budget, userId, darkMode, categories }: { budget: We
   );
 }
 
-function FinanceAdvisorView({ movements, accounts, goals, darkMode, plan, userProfile }: { movements: Movement[], accounts: Account[], goals: Goal[], darkMode: boolean, plan: 'basic' | 'premium', userProfile: UserProfile | null }) {
+function FinanceAdvisorView({ movements, accounts, goals, categories, darkMode, plan, userProfile }: { movements: Movement[], accounts: Account[], goals: Goal[], categories: Category[], darkMode: boolean, plan: 'basic' | 'premium', userProfile: UserProfile | null }) {
   const [messages, setMessages] = useState<{ role: 'user' | 'model', text: string }[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -2324,120 +2353,235 @@ function FinanceAdvisorView({ movements, accounts, goals, darkMode, plan, userPr
     const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
     const totalGoals = goals.length;
     const completedGoals = goals.filter(g => g.currentAmount >= g.targetAmount).length;
-    const recentMovements = movements.slice(0, 5).map(m => `${m.type === 'income' ? '+' : '-'}S/ ${m.amount} (${m.date})${m.note ? ` [Nota: ${m.note}]` : ''}`).join(', ');
     
-    return `Saldo total: S/ ${totalBalance}. Metas: ${completedGoals}/${totalGoals}. Movimientos recientes: ${recentMovements}.`;
-  }, [movements, accounts, goals]);
+    // Summary by category
+    const spendingByCategory: Record<string, number> = {};
+    const incomeByCategory: Record<string, number> = {};
+    
+    movements.forEach(m => {
+      const cat = categories.find(c => c.id === m.categoryId)?.name || 'Sin categoría';
+      if (m.type === 'expense') {
+        spendingByCategory[cat] = (spendingByCategory[cat] || 0) + m.amount;
+      } else {
+        incomeByCategory[cat] = (incomeByCategory[cat] || 0) + m.amount;
+      }
+    });
 
-  const handleSend = async () => {
-    if (!input.trim() || isTyping) return;
-    if (plan === 'basic' && messages.length >= 3) {
-      alert("El plan básico solo permite 3 mensajes con el asesor. ¡Pásate a Premium para chats ilimitados!");
+    const recentMovements = movements.slice(0, 20).map(m => {
+      const cat = categories.find(c => c.id === m.categoryId)?.name || 'Sin categoría';
+      return `${m.type === 'income' ? '+' : '-'}S/ ${m.amount} [${cat}] (${format(parseISO(m.date), 'dd/MM/yy')})${m.note ? ` nota: ${m.note}` : ''}`;
+    }).join('; ');
+    
+    const spendingStr = Object.entries(spendingByCategory).map(([cat, amt]) => `${cat}: S/ ${amt}`).join(', ');
+    const incomeStr = Object.entries(incomeByCategory).map(([cat, amt]) => `${cat}: S/ ${amt}`).join(', ');
+
+    return `
+      FECHA ACTUAL: ${format(new Date(), 'yyyy-MM-dd HH:mm')}
+      SALDO TOTAL: S/ ${totalBalance}
+      METAS: ${completedGoals}/${totalGoals} completadas.
+      
+      RESUMEN POR CATEGORÍAS (HISTÓRICO):
+      GASTOS: ${spendingStr || 'Sin gastos registrados'}
+      INGRESOS: ${incomeStr || 'Sin ingresos registrados'}
+      
+      ÚLTIMOS 20 MOVIMIENTOS:
+      ${recentMovements}
+      
+      TOTAL MOVIMIENTOS REGISTRADOS: ${movements.length}
+    `;
+  }, [movements, accounts, goals, categories]);
+
+  const handleSend = async (customInput?: string) => {
+    const textToSend = customInput || input;
+    if (!textToSend.trim() || isTyping) return;
+    if (plan === 'basic' && messages.length >= 6) { // More messages allowed in basic for context testing
+      alert("El plan básico tiene un límite. ¡Pásate a Premium para chats ilimitados!");
       return;
     }
 
-    const userMsg = { role: 'user' as const, text: input };
+    const userMsg = { role: 'user' as const, text: textToSend };
+    const newHistory = [...messages, userMsg];
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
 
     try {
-      const apiKey = (plan === 'premium' && userProfile?.geminiApiKey) ? userProfile.geminiApiKey : process.env.GEMINI_API_KEY!;
+      const apiKey = userProfile?.geminiApiKey || process.env.GEMINI_API_KEY;
+      
+      if (!apiKey) {
+        setMessages(prev => [...prev, { 
+          role: 'model', 
+          text: "Configura tu Gemini API Key en Ajustes para usar el asesor IA." 
+        }]);
+        setIsTyping(false);
+        return;
+      }
+
       const ai = new GoogleGenAI({ apiKey });
       
-      const prompt = `Eres un asesor financiero experto para la app "Finanzas Mil pro". 
-      Contexto del usuario: ${statsSummary}
-      Responde de forma concisa, profesional y motivadora en español. 
-      Pregunta del usuario: ${input}`;
+      const systemInstruction = `Eres LIA (Logros e Inteligencia Ahorrativa), una asesora financiera experta, profesional, natural y cercana. 
+      Tu objetivo es ayudar al usuario a gestionar su dinero basándote ÚNICAMENTE en sus datos REALES proporcionados a continuación.
+      
+      CONTEXTO FINANCIERO DEL USUARIO (Datos actuales):
+      ${statsSummary}
+      
+      REGLAS CRÍTICAS DE RESPUESTA:
+      1. BÚSQUEDA DE BREVEDAD: Responde de forma muy concisa. Si es un saludo (hola, qué tal, etc), responde en UNA O DOS líneas de forma natural y cercana, invitando al usuario a preguntar.
+      2. NO REPITAS DATOS: Nunca des un resumen de todas las cuentas o gastos a menos que te lo pidan explícitamente.
+      3. ESPECIFICIDAD: Solo cuando pregunten por gastos (ej: "cuánto gasté en comida"), usa los datos para dar la cifra exacta y un consejo breve.
+      4. CONTINUIDAD HUMANA: Sigue el flujo de la charla como ChatGPT o Claude. Sé una experta humana, no un reporte automático.
+      5. MÁXIMO 2-3 PÁRRAFOS: Incluso para consultas complejas, nunca excedas este límite.
+      6. SIGUE LA CORRIENTE: Si el usuario bromea o charla de forma casual, responde con naturalidad antes de volver al tema financiero.`;
+
+      const contents = [
+        ...newHistory.map(m => ({
+          role: m.role,
+          parts: [{ text: m.text }]
+        }))
+      ];
 
       const result = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: prompt
+        contents: contents,
+        config: {
+          systemInstruction: systemInstruction
+        }
       });
       const modelMsg = { role: 'model' as const, text: result.text || "Lo siento, no pude procesar tu solicitud." };
       setMessages(prev => [...prev, modelMsg]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error with Gemini:", error);
-      setMessages(prev => [...prev, { role: 'model', text: "Hubo un error al conectar con el asesor. Por favor intenta de nuevo." }]);
+      let errorMessage = "Hubo un error al conectar con el asesor. Por favor intenta de nuevo.";
+      
+      if (error?.message?.includes('API_KEY_INVALID')) {
+        errorMessage = "La API Key de Gemini es inválida. Por favor verifícala en Ajustes.";
+      } else if (error?.message?.includes('quota')) {
+        errorMessage = "Se ha agotado la cuota de la API de Gemini. Intenta más tarde.";
+      }
+
+      setMessages(prev => [...prev, { role: 'model', text: errorMessage }]);
     } finally {
       setIsTyping(false);
     }
   };
 
+  const quickQueries = [
+    "¿Cúanto gasté la semana pasada?",
+    "¿En qué categoría gasto más?",
+    "¿Cómo voy con mis metas?",
+    "¿Consejo para ahorrar hoy?"
+  ];
+
   return (
     <div className="flex flex-col h-[calc(100vh-200px)] space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-500" />
-            <h2 className={cn("text-xl font-black font-display uppercase tracking-widest transition-colors", darkMode ? "text-white" : "text-slate-900")}>Asesor IA</h2>
-          </div>
-          {plan === 'basic' && (
-            <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-full uppercase tracking-widest">Plan Básico</span>
-          )}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-purple-500" />
+          <h2 className={cn("text-xl font-black font-display uppercase tracking-widest transition-colors", darkMode ? "text-white" : "text-slate-900")}>Asesor IA (LIA)</h2>
         </div>
+        {plan === 'basic' && (
+          <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-full uppercase tracking-widest">Plan Básico</span>
+        )}
+      </div>
 
       <div className={cn(
-        "flex-1 overflow-y-auto p-3 rounded-2xl border space-y-2 transition-colors",
+        "flex-1 overflow-y-auto p-3 rounded-2xl border space-y-3 transition-colors",
         darkMode ? "glass-card border-slate-800/50" : "glass-card-light border-slate-100 shadow-sm"
       )}>
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-2 p-4">
-            <div className="w-12 h-12 bg-indigo-500/10 rounded-full flex items-center justify-center">
-              <MessageSquare className="w-6 h-6 text-indigo-500" />
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-4 p-4">
+            <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center">
+              <Sparkles className="w-8 h-8 text-purple-500" />
             </div>
             <div>
-              <p className={cn("font-bold text-sm", darkMode ? "text-slate-200" : "text-slate-900")}>¿En qué puedo ayudarte?</p>
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Pregúntame sobre tus ahorros</p>
+              <p className={cn("font-black text-lg uppercase tracking-tight", darkMode ? "text-white" : "text-slate-900")}>Hola, soy LIA</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] mb-4">Tu experta financiera personal</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {quickQueries.map((q, idx) => (
+                  <button 
+                    key={idx}
+                    onClick={() => handleSend(q)}
+                    className={cn(
+                      "px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95",
+                      darkMode ? "bg-zinc-900 border-zinc-800 text-slate-400 hover:text-purple-400" : "bg-white border-slate-100 text-slate-500 hover:text-purple-600 shadow-sm"
+                    )}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
-          messages.map((msg, i) => (
-            <div key={i} className={cn(
-              "flex",
-              msg.role === 'user' ? "justify-end" : "justify-start"
-            )}>
-              <div className={cn(
-                "max-w-[85%] p-3 rounded-xl text-xs font-medium",
-                msg.role === 'user' 
-                  ? "bg-indigo-600 text-white rounded-tr-none" 
-                  : darkMode ? "bg-zinc-900 text-slate-200 rounded-tl-none" : "bg-slate-100 text-slate-800 rounded-tl-none"
+          <>
+            {messages.map((msg, i) => (
+              <div key={i} className={cn(
+                "flex",
+                msg.role === 'user' ? "justify-end" : "justify-start"
               )}>
-                {msg.text}
+                <div className={cn(
+                  "max-w-[85%] p-4 rounded-3xl text-[13px] font-bold leading-relaxed shadow-sm",
+                  msg.role === 'user' 
+                    ? "bg-purple-600 text-white rounded-tr-none" 
+                    : darkMode ? "bg-zinc-900 text-slate-200 rounded-tl-none border border-zinc-800" : "bg-white text-slate-800 rounded-tl-none border border-slate-100"
+                )}>
+                  {msg.text}
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+            {/* Quick replies for flow */}
+            {messages[messages.length-1].role === 'model' && (
+              <div className="flex gap-2 p-1 overflow-x-auto no-scrollbar">
+                {["Gracias LIA", "¿Y mis metas?", "¿Cómo ahorro más?"].map((q, idx) => (
+                  <button 
+                    key={idx}
+                    onClick={() => handleSend(q)}
+                    className={cn(
+                      "whitespace-nowrap px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all",
+                      darkMode ? "bg-zinc-900/50 border-zinc-800 text-slate-500" : "bg-slate-50 border-slate-200 text-slate-400"
+                    )}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
         {isTyping && (
           <div className="flex justify-start">
             <div className={cn(
-              "p-3 rounded-xl text-sm font-medium animate-pulse",
-              darkMode ? "bg-zinc-900 text-slate-400" : "bg-slate-100 text-slate-400"
+              "p-3 rounded-2xl text-[10px] font-black uppercase tracking-widest animate-pulse flex items-center gap-2",
+              darkMode ? "bg-zinc-900 text-slate-500" : "bg-slate-50 text-slate-400"
             )}>
-              Pensando...
+              <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" />
+              LIA está analizando...
             </div>
           </div>
         )}
       </div>
 
-      <div className="flex gap-2">
-        <input 
-          type="text" 
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Escribe tu consulta..."
-          className={cn(
-            "flex-1 py-3 px-4 rounded-xl border-none focus:ring-2 focus:ring-indigo-500 transition-colors text-base font-medium",
-            darkMode ? "glass-card text-white" : "glass-card-light text-slate-900 shadow-sm"
-          )}
-        />
-        <button 
-          onClick={handleSend}
-          disabled={isTyping}
-          className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-transform disabled:opacity-50"
-        >
-          <ArrowRightLeft className="w-5 h-5 rotate-90" />
-        </button>
+      <div className="p-1 space-y-2">
+        <div className="flex gap-2">
+          <input 
+            type="text" 
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Habla con LIA..."
+            className={cn(
+              "flex-1 py-4 px-6 rounded-2xl border-none focus:ring-2 focus:ring-purple-500 transition-colors text-sm font-bold",
+              darkMode ? "glass-card text-white placeholder:text-zinc-600" : "glass-card-light text-slate-900 shadow-sm placeholder:text-slate-400"
+            )}
+          />
+          <button 
+            onClick={() => handleSend()}
+            disabled={isTyping}
+            className="w-14 h-14 flex items-center justify-center bg-purple-600 text-white rounded-2xl shadow-xl shadow-purple-500/30 active:scale-95 transition-all disabled:opacity-50"
+          >
+            <ArrowRightLeft className="w-6 h-6 rotate-90" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2575,21 +2719,21 @@ function RecurringPaymentModal({
               <button 
                 onClick={() => setFrequency('monthly')}
                 className={cn("flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all", 
-                  frequency === 'monthly' ? "bg-indigo-600 text-white" : (darkMode ? "bg-zinc-900 text-slate-500" : "bg-slate-100 text-slate-500"))}
+                  frequency === 'monthly' ? "bg-purple-600 text-white" : (darkMode ? "bg-zinc-900 text-slate-500" : "bg-slate-100 text-slate-500"))}
               >
                 Mensual
               </button>
               <button 
                 onClick={() => setFrequency('weekly')}
                 className={cn("flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all", 
-                  frequency === 'weekly' ? "bg-indigo-600 text-white" : (darkMode ? "bg-zinc-900 text-slate-500" : "bg-slate-100 text-slate-500"))}
+                  frequency === 'weekly' ? "bg-purple-600 text-white" : (darkMode ? "bg-zinc-900 text-slate-500" : "bg-slate-100 text-slate-500"))}
               >
                 Semanal
               </button>
             </div>
             <button 
               onClick={handleAdd}
-              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
+              className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg shadow-purple-600/20 active:scale-95 transition-all"
             >
               Agregar Recordatorio
             </button>
@@ -2706,7 +2850,7 @@ function QuickActionModal({
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Ej: Almuerzo"
               className={cn(
-                "w-full p-4 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all",
+                "w-full p-4 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-purple-500 transition-all",
                 darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
               )}
             />
@@ -2721,7 +2865,7 @@ function QuickActionModal({
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
               className={cn(
-                "w-full p-4 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all",
+                "w-full p-4 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-purple-500 transition-all",
                 darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
               )}
             />
@@ -2740,7 +2884,7 @@ function QuickActionModal({
                     className={cn(
                       "p-3 rounded-xl flex items-center justify-center transition-all",
                       icon === i 
-                        ? "bg-indigo-600 text-white" 
+                        ? "bg-purple-600 text-white" 
                         : darkMode ? "bg-zinc-900 text-slate-500" : "bg-slate-50 text-slate-400"
                     )}
                   >
@@ -2765,7 +2909,7 @@ function QuickActionModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-[2] py-4 rounded-2xl bg-indigo-600 text-white text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-95 transition-all disabled:opacity-50"
+              className="flex-[2] py-4 rounded-2xl bg-purple-600 text-white text-xs font-black uppercase tracking-widest shadow-xl shadow-purple-500/20 active:scale-95 transition-all disabled:opacity-50"
             >
               {isSubmitting ? 'Guardando...' : 'Guardar'}
             </button>
@@ -2883,7 +3027,7 @@ function SummaryTableModal({
                               return (
                                 <th key={i} className={cn(
                                   "border border-slate-300 dark:border-zinc-700 p-1.5 text-center font-black text-sm",
-                                  dayInWeek && (darkMode ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-700")
+                                  dayInWeek && (darkMode ? "bg-purple-500/20 text-purple-400" : "bg-purple-100 text-purple-700")
                                 )}>
                                   {dayInWeek ? format(dayInWeek, 'd') : ''}
                                 </th>
@@ -2927,7 +3071,7 @@ function SummaryTableModal({
                             "font-black",
                             darkMode ? "bg-zinc-900 text-slate-200" : "bg-slate-200 text-slate-700"
                           )}>
-                            <td className="border border-slate-300 dark:border-zinc-700 p-2 uppercase tracking-widest text-indigo-500">SUBTOTAL</td>
+                            <td className="border border-slate-300 dark:border-zinc-700 p-2 uppercase tracking-widest text-purple-500">SUBTOTAL</td>
                             {dayNames.map((_, i) => {
                               const dayInWeek = weekDays.find(d => getDay(d) === i);
                               const dayTotal = dayInWeek ? currentMovements.filter(m => isSameDay(parseISO(m.date), dayInWeek)).reduce((s, m) => s + m.amount, 0) : 0;
@@ -2952,9 +3096,9 @@ function SummaryTableModal({
                 
                 <div className={cn(
                   "p-4 rounded-2xl flex items-center justify-between",
-                  darkMode ? "bg-indigo-900/20 border border-indigo-500/20" : "bg-amber-500 border border-amber-600"
+                  darkMode ? "bg-purple-900/20 border border-purple-500/20" : "bg-amber-500 border border-amber-600"
                 )}>
-                  <span className={cn("text-lg font-black uppercase tracking-widest", darkMode ? "text-indigo-400" : "text-white")}>TOTAL GENERAL</span>
+                  <span className={cn("text-lg font-black uppercase tracking-widest", darkMode ? "text-purple-400" : "text-white")}>TOTAL GENERAL</span>
                   <span className={cn("text-2xl font-black font-display", darkMode ? "text-white" : "text-white")}>
                     S/ {currentMovements.reduce((s, m) => s + m.amount, 0).toLocaleString()}
                   </span>
@@ -2980,6 +3124,7 @@ function DashboardView({
   stats, 
   setActiveTab, 
   onAddMovement, 
+  onNavigateToCalendar,
   onDeleteMovement,
   deferredPrompt
 }: { 
@@ -2993,6 +3138,7 @@ function DashboardView({
   darkMode: boolean, 
   stats: DashboardStats, 
   setActiveTab: (tab: string) => void, 
+  onNavigateToCalendar: (date?: Date, viewDate?: Date) => void,
   onAddMovement: (type?: MovementType) => void, 
   onDeleteMovement?: (m: Movement) => void,
   deferredPrompt: any
@@ -3006,6 +3152,43 @@ function DashboardView({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [summaryModal, setSummaryModal] = useState<{ open: boolean, type: MovementType }>({ open: false, type: 'expense' });
+  const [selectedDay, setSelectedDay] = useState(new Date());
+  const [selectedWeek, setSelectedWeek] = useState(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+
+  const personalDailyStats = useMemo(() => {
+    const dMovements = movements.filter(m => isSameDay(parseISO(m.date), selectedDay));
+    return {
+      income: dMovements.filter(m => m.type === 'income').reduce((sum, m) => sum + m.amount, 0),
+      expense: dMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + m.amount, 0),
+    };
+  }, [selectedDay, movements]);
+
+  const personalWeeklyStats = useMemo(() => {
+    const start = startOfWeek(selectedWeek, { weekStartsOn: 0 });
+    const end = endOfWeek(selectedWeek, { weekStartsOn: 0 });
+    const wMovements = movements.filter(m => {
+      const d = parseISO(m.date);
+      return d >= start && d <= end;
+    });
+    return {
+      income: wMovements.filter(m => m.type === 'income').reduce((sum, m) => sum + m.amount, 0),
+      expense: wMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + m.amount, 0),
+    };
+  }, [selectedWeek, movements]);
+
+  const personalMonthlyStats = useMemo(() => {
+    const start = startOfMonth(selectedMonth);
+    const end = endOfMonth(selectedMonth);
+    const mMovements = movements.filter(m => {
+      const d = parseISO(m.date);
+      return d >= start && d <= end;
+    });
+    return {
+      income: mMovements.filter(m => m.type === 'income').reduce((sum, m) => sum + m.amount, 0),
+      expense: mMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + m.amount, 0),
+    };
+  }, [selectedMonth, movements]);
 
   const handleQuickExpense = async (amount: number, categoryName: string) => {
     if (accounts.length === 0) {
@@ -3124,12 +3307,12 @@ function DashboardView({
           animate={{ opacity: 1, y: 0 }}
           className={cn(
             "p-4 rounded-[2.5rem] border flex items-center justify-between gap-4 transition-all duration-500 mb-2",
-            darkMode ? "bg-indigo-600/20 border-indigo-500/30" : "bg-indigo-50 border-indigo-100"
+            darkMode ? "bg-purple-600/20 border-purple-500/30" : "bg-purple-50 border-purple-100"
           )}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-              <Smartphone className="w-6 h-6" />
+            <div className="w-10 h-10 bg-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-purple-500/20">
+              <Wallet className="w-6 h-6" />
             </div>
             <div>
               <p className={cn("text-xs font-black uppercase tracking-tight", darkMode ? "text-white" : "text-slate-900")}>Instalar App</p>
@@ -3150,7 +3333,7 @@ function DashboardView({
             }}
             className={cn(
               "px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95",
-              darkMode ? "bg-indigo-600 text-white" : "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20"
+              darkMode ? "bg-purple-600 text-white" : "bg-purple-500 text-white shadow-lg shadow-purple-500/20"
             )}
           >
             Instalar
@@ -3169,7 +3352,7 @@ function DashboardView({
               onClick={() => setIsRecurringModalOpen(true)}
               className={cn(
                 "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95",
-                darkMode ? "bg-zinc-800 text-indigo-400 hover:bg-zinc-700" : "bg-white text-indigo-600 border border-slate-100 shadow-sm"
+                darkMode ? "bg-zinc-800 text-purple-400 hover:bg-zinc-700" : "bg-white text-purple-600 border border-slate-100 shadow-sm"
               )}
             >
               Gestionar
@@ -3204,7 +3387,7 @@ function DashboardView({
                   </p>
                   <button 
                     onClick={() => handleMarkAsPaid(payment)}
-                    className="text-[8px] font-black uppercase text-indigo-500 hover:underline"
+                    className="text-[8px] font-black uppercase text-purple-500 hover:underline"
                   >
                     Pagar
                   </button>
@@ -3252,7 +3435,7 @@ function DashboardView({
       {/* AI Smart Input */}
       <section className="space-y-4">
         <div className="flex items-center gap-2 px-1">
-          <Sparkles className="w-5 h-5 text-indigo-500" />
+          <Sparkles className="w-5 h-5 text-purple-500" />
           <h3 className={cn("font-black text-xl uppercase tracking-widest", darkMode ? "text-white" : "text-slate-900")}>Registro Inteligente</h3>
         </div>
         <div className={cn(
@@ -3275,7 +3458,7 @@ function DashboardView({
               disabled={isAiLoading}
               className={cn(
                 "p-3 rounded-2xl transition-all active:scale-95",
-                darkMode ? "bg-indigo-600 text-white" : "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20"
+                darkMode ? "bg-purple-600 text-white" : "bg-purple-500 text-white shadow-lg shadow-purple-500/20"
               )}
             >
               {isAiLoading ? <RefreshCcw className="w-5 h-5 animate-spin" /> : <ArrowRightLeft className="w-5 h-5" />}
@@ -3296,7 +3479,7 @@ function DashboardView({
             }}
             className={cn(
               "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95",
-              darkMode ? "bg-zinc-800 text-indigo-400 hover:bg-zinc-700" : "bg-white text-indigo-600 border border-slate-100 shadow-sm"
+              darkMode ? "bg-zinc-800 text-purple-400 hover:bg-zinc-700" : "bg-white text-purple-600 border border-slate-100 shadow-sm"
             )}
           >
             + Agregar
@@ -3320,13 +3503,13 @@ function DashboardView({
                 >
                   <div className={cn(
                     "w-10 h-10 rounded-2xl flex items-center justify-center",
-                    darkMode ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600"
+                    darkMode ? "bg-purple-500/10 text-purple-400" : "bg-purple-50 text-purple-600"
                   )}>
                     <IconComponent className="w-5 h-5" />
                   </div>
                   <div className="text-center">
                     <p className={cn("text-[10px] font-black uppercase tracking-tighter truncate w-full", darkMode ? "text-slate-300" : "text-slate-900")}>{item.label}</p>
-                    <p className="text-[9px] font-bold text-indigo-500 font-display tracking-tighter">S/ {item.amount}</p>
+                    <p className="text-[9px] font-bold text-purple-500 font-display tracking-tighter">S/ {item.amount}</p>
                   </div>
                 </button>
                 <button 
@@ -3337,7 +3520,7 @@ function DashboardView({
                   }}
                   className="absolute -top-1 -right-1 p-1.5 bg-white dark:bg-zinc-800 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 border border-slate-100 dark:border-zinc-700"
                 >
-                  <Edit3 className="w-3 h-3 text-indigo-500" />
+                  <Edit3 className="w-3 h-3 text-purple-500" />
                 </button>
               </motion.div>
             );
@@ -3376,14 +3559,14 @@ function DashboardView({
         <div className={cn(
           "p-5 rounded-3xl border transition-all duration-500 relative overflow-hidden",
           darkMode 
-            ? "bg-indigo-600 border-indigo-500 shadow-[0_20px_60px_rgba(79,70,229,0.4)]" 
+            ? "bg-purple-600 border-purple-500 shadow-[0_20px_60px_rgba(168,85,247,0.4)]" 
             : "glass-card-light border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.05)]"
         )}>
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-3">
-              <p className={cn("text-[10px] font-black uppercase tracking-[0.4em]", darkMode ? "text-indigo-100/60" : "text-slate-400")}>Balance Total</p>
-              <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", darkMode ? "bg-white/10" : "bg-indigo-50")}>
-                <Wallet className={cn("w-4 h-4", darkMode ? "text-white" : "text-indigo-600")} />
+              <p className={cn("text-[10px] font-black uppercase tracking-[0.4em]", darkMode ? "text-purple-100/60" : "text-slate-400")}>Balance Total</p>
+              <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", darkMode ? "bg-white/10" : "bg-purple-50")}>
+                <Wallet className={cn("w-4 h-4", darkMode ? "text-white" : "text-purple-600")} />
               </div>
             </div>
             <h2 className={cn("text-3xl font-black font-display tracking-tighter mb-1", darkMode ? "text-white" : "text-slate-900")}>
@@ -3392,7 +3575,7 @@ function DashboardView({
             <div className="flex items-center gap-6 mt-3">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <p className={cn("text-[9px] font-black uppercase tracking-widest", darkMode ? "text-indigo-100/60" : "text-slate-400")}>Ingresos</p>
+                  <p className={cn("text-[9px] font-black uppercase tracking-widest", darkMode ? "text-purple-100/60" : "text-slate-400")}>Ingresos</p>
                   <button 
                     onClick={() => setSummaryModal({ open: true, type: 'income' })}
                     className="p-1 rounded-lg hover:bg-emerald-500/10 transition-colors"
@@ -3405,7 +3588,7 @@ function DashboardView({
               <div className={cn("w-px h-8", darkMode ? "bg-white/10" : "bg-slate-100")}></div>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <p className={cn("text-[9px] font-black uppercase tracking-widest", darkMode ? "text-indigo-100/60" : "text-slate-400")}>Gastos</p>
+                  <p className={cn("text-[9px] font-black uppercase tracking-widest", darkMode ? "text-purple-100/60" : "text-slate-400")}>Gastos</p>
                   <button 
                     onClick={() => setSummaryModal({ open: true, type: 'expense' })}
                     className="p-1 rounded-lg hover:bg-rose-500/10 transition-colors"
@@ -3415,12 +3598,21 @@ function DashboardView({
                 </div>
                 <p className={cn("text-lg font-black font-display", darkMode ? "text-rose-300" : "text-rose-500")}>-S/ {stats.monthlyExpense.toLocaleString()}</p>
               </div>
+              <div className={cn("w-px h-8", darkMode ? "bg-white/10" : "bg-slate-100")}></div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className={cn("text-[9px] font-black uppercase tracking-widest", darkMode ? "text-purple-100/60" : "text-slate-400")}>Neto</p>
+                </div>
+                <p className={cn("text-lg font-black font-display", (stats.monthlyIncome - stats.monthlyExpense) >= 0 ? "text-emerald-400" : darkMode ? "text-rose-300" : "text-rose-500")}>
+                  {(stats.monthlyIncome - stats.monthlyExpense) >= 0 ? '+' : '-'}S/ {Math.abs(stats.monthlyIncome - stats.monthlyExpense).toLocaleString()}
+                </p>
+              </div>
             </div>
           </div>
           
           {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-400/20 rounded-full blur-2xl -ml-16 -mb-16"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-400/20 rounded-full blur-2xl -ml-16 -mb-16"></div>
         </div>
       </section>
 
@@ -3470,75 +3662,155 @@ function DashboardView({
       <section className="space-y-6">
         <h3 className={cn("font-black text-xl uppercase tracking-widest px-1 transition-colors", darkMode ? "text-white" : "text-slate-900")}>Resumen Financiero</h3>
         <div className="grid grid-cols-1 gap-5">
-          {/* Today */}
+          {/* Today - Independent Selector */}
           <div className={cn(
-            "p-4 rounded-2xl border transition-all duration-300 flex items-center justify-between",
+            "p-5 rounded-[2rem] border transition-all duration-300 relative overflow-hidden text-left w-full",
             darkMode ? "glass-card border-slate-800/50" : "glass-card-light border-slate-100 shadow-sm"
           )}>
-            <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2">Hoy</p>
-              <div className="flex items-center gap-6">
-                <div>
-                  <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Ingresos</p>
-                  <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-emerald-400" : "text-emerald-600")}>+S/ {stats.dailyIncome.toLocaleString()}</p>
-                </div>
-                <div className="w-px h-10 bg-zinc-800/50"></div>
-                <div>
-                  <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-1">Gastos</p>
-                  <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-rose-400" : "text-rose-600")}>-S/ {stats.dailyExpense.toLocaleString()}</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">
+                  {isSameDay(selectedDay, new Date()) ? 'Hoy' : 'Día Seleccionado'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setSelectedDay(addDays(selectedDay, -1))}
+                    className={cn("p-1 rounded-lg", darkMode ? "hover:bg-slate-800" : "hover:bg-slate-100")}
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <p className={cn("text-xs font-bold uppercase tracking-tight", darkMode ? "text-purple-300" : "text-purple-600")}>
+                    {format(selectedDay, "EEEE, d 'de' MMMM", { locale: es })}
+                  </p>
+                  <button 
+                    onClick={() => setSelectedDay(addDays(selectedDay, 1))}
+                    className={cn("p-1 rounded-lg", darkMode ? "hover:bg-slate-800" : "hover:bg-slate-100")}
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", darkMode ? "bg-zinc-900" : "bg-purple-50")}>
+                <CalendarIcon className="w-5 h-5 text-purple-500" />
+              </div>
             </div>
-            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", darkMode ? "bg-zinc-900" : "bg-slate-50")}>
-              <History className="w-6 h-6 text-indigo-500" />
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Ingresos</p>
+                <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-emerald-400" : "text-emerald-600")}>+S/ {personalDailyStats.income.toLocaleString()}</p>
+              </div>
+              <div className="w-px h-10 bg-zinc-800/50"></div>
+              <div>
+                <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-1">Gastos</p>
+                <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-rose-400" : "text-rose-600")}>-S/ {personalDailyStats.expense.toLocaleString()}</p>
+              </div>
+              <div className="w-px h-10 bg-zinc-800/50"></div>
+              <div>
+                <p className="text-[9px] font-black text-purple-500 uppercase tracking-widest mb-1">Neto</p>
+                <p className={cn("text-2xl font-black font-display tracking-tighter", (personalDailyStats.income - personalDailyStats.expense) >= 0 ? "text-emerald-400" : darkMode ? "text-rose-400" : "text-rose-600")}>
+                  {(personalDailyStats.income - personalDailyStats.expense) >= 0 ? '+' : '-'}S/ {Math.abs(personalDailyStats.income - personalDailyStats.expense).toLocaleString()}
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Weekly */}
+          {/* Weekly - Independent Selector */}
           <div className={cn(
-            "p-4 rounded-2xl border transition-all duration-300 flex items-center justify-between",
+            "p-5 rounded-[2rem] border transition-all duration-300 relative overflow-hidden text-left w-full",
             darkMode ? "glass-card border-slate-800/50" : "glass-card-light border-slate-100 shadow-sm"
           )}>
-            <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2">Esta Semana</p>
-              <div className="flex items-center gap-6">
-                <div>
-                  <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Ingresos</p>
-                  <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-emerald-400" : "text-emerald-600")}>+S/ {stats.weeklyIncome.toLocaleString()}</p>
-                </div>
-                <div className="w-px h-10 bg-zinc-800/50"></div>
-                <div>
-                  <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-1">Gastos</p>
-                  <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-rose-400" : "text-rose-600")}>-S/ {stats.weeklyExpense.toLocaleString()}</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Semana Personalizada</p>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setSelectedWeek(addDays(selectedWeek, -7))}
+                    className={cn("p-1 rounded-lg", darkMode ? "hover:bg-slate-800" : "hover:bg-slate-100")}
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <p className={cn("text-xs font-bold uppercase tracking-tight", darkMode ? "text-emerald-300" : "text-emerald-600")}>
+                    {format(startOfWeek(selectedWeek, { weekStartsOn: 0 }), 'd MMM')} - {format(endOfWeek(selectedWeek, { weekStartsOn: 0 }), 'd MMM')}
+                  </p>
+                  <button 
+                    onClick={() => setSelectedWeek(addDays(selectedWeek, 7))}
+                    className={cn("p-1 rounded-lg", darkMode ? "hover:bg-slate-800" : "hover:bg-slate-100")}
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", darkMode ? "bg-zinc-900" : "bg-emerald-50")}>
+                <CalendarIcon className="w-5 h-5 text-emerald-500" />
+              </div>
             </div>
-            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", darkMode ? "bg-zinc-900" : "bg-slate-50")}>
-              <TrendingUp className="w-6 h-6 text-emerald-500" />
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Ingresos</p>
+                <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-emerald-400" : "text-emerald-600")}>+S/ {personalWeeklyStats.income.toLocaleString()}</p>
+              </div>
+              <div className="w-px h-10 bg-zinc-800/50"></div>
+              <div>
+                <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-1">Gastos</p>
+                <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-rose-400" : "text-rose-600")}>-S/ {personalWeeklyStats.expense.toLocaleString()}</p>
+              </div>
+              <div className="w-px h-10 bg-zinc-800/50"></div>
+              <div>
+                <p className="text-[9px] font-black text-purple-500 uppercase tracking-widest mb-1">Neto</p>
+                <p className={cn("text-2xl font-black font-display tracking-tighter", (personalWeeklyStats.income - personalWeeklyStats.expense) >= 0 ? "text-emerald-400" : darkMode ? "text-rose-400" : "text-rose-600")}>
+                  {(personalWeeklyStats.income - personalWeeklyStats.expense) >= 0 ? '+' : '-'}S/ {Math.abs(personalWeeklyStats.income - personalWeeklyStats.expense).toLocaleString()}
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Monthly */}
+          {/* Monthly - Independent Selector */}
           <div className={cn(
-            "p-4 rounded-2xl border transition-all duration-300 flex items-center justify-between",
+            "p-5 rounded-[2rem] border transition-all duration-300 relative overflow-hidden text-left w-full",
             darkMode ? "glass-card border-slate-800/50" : "glass-card-light border-slate-100 shadow-sm"
           )}>
-            <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2">Este Mes</p>
-              <div className="flex items-center gap-6">
-                <div>
-                  <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Ingresos</p>
-                  <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-emerald-400" : "text-emerald-600")}>+S/ {stats.monthlyIncome.toLocaleString()}</p>
-                </div>
-                <div className="w-px h-10 bg-zinc-800/50"></div>
-                <div>
-                  <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-1">Gastos</p>
-                  <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-rose-400" : "text-rose-600")}>-S/ {stats.monthlyExpense.toLocaleString()}</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Mes Seleccionado</p>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))}
+                    className={cn("p-1 rounded-lg", darkMode ? "hover:bg-slate-800" : "hover:bg-slate-100")}
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <p className={cn("text-xs font-bold uppercase tracking-tight", darkMode ? "text-amber-300" : "text-amber-600")}>
+                    {format(selectedMonth, 'MMMM yyyy', { locale: es })}
+                  </p>
+                  <button 
+                    onClick={() => setSelectedMonth(addMonths(selectedMonth, 1))}
+                    className={cn("p-1 rounded-lg", darkMode ? "hover:bg-slate-800" : "hover:bg-slate-100")}
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", darkMode ? "bg-zinc-900" : "bg-amber-50")}>
+                <CalendarIcon className="w-5 h-5 text-amber-500" />
+              </div>
             </div>
-            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", darkMode ? "bg-zinc-900" : "bg-slate-50")}>
-              <PieChart className="w-6 h-6 text-amber-500" />
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Ingresos</p>
+                <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-emerald-400" : "text-emerald-600")}>+S/ {personalMonthlyStats.income.toLocaleString()}</p>
+              </div>
+              <div className="w-px h-10 bg-zinc-800/50"></div>
+              <div>
+                <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-1">Gastos</p>
+                <p className={cn("text-2xl font-black font-display tracking-tighter", darkMode ? "text-rose-400" : "text-rose-600")}>-S/ {personalMonthlyStats.expense.toLocaleString()}</p>
+              </div>
+              <div className="w-px h-10 bg-zinc-800/50"></div>
+              <div>
+                <p className="text-[9px] font-black text-purple-500 uppercase tracking-widest mb-1">Neto</p>
+                <p className={cn("text-2xl font-black font-display tracking-tighter", (personalMonthlyStats.income - personalMonthlyStats.expense) >= 0 ? "text-emerald-400" : darkMode ? "text-rose-400" : "text-rose-600")}>
+                  {(personalMonthlyStats.income - personalMonthlyStats.expense) >= 0 ? '+' : '-'}S/ {Math.abs(personalMonthlyStats.income - personalMonthlyStats.expense).toLocaleString()}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -3562,7 +3834,7 @@ function DashboardView({
           "p-6 rounded-[2.5rem] border transition-all duration-300",
           darkMode ? "bg-black/40 border-zinc-800/50" : "bg-white border-slate-100 shadow-sm"
         )}>
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-500 flex items-center justify-center mb-4">
             <Sparkles className="w-6 h-6" />
           </div>
           <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2">Ahorro Mes</p>
@@ -3578,7 +3850,7 @@ function DashboardView({
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <h3 className={cn("font-black text-xl uppercase tracking-widest transition-colors", darkMode ? "text-white" : "text-slate-900")}>Gastos por Categoría</h3>
-              <span className="bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">PRO</span>
+              <span className="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">PRO</span>
             </div>
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Esta Semana</p>
           </div>
@@ -3598,7 +3870,7 @@ function DashboardView({
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
-                    darkMode ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600",
+                    darkMode ? "bg-purple-500/10 text-purple-400" : "bg-purple-50 text-purple-600",
                     cat.amount === 0 && (darkMode ? "bg-zinc-800/50 text-zinc-600" : "bg-slate-100 text-slate-400")
                   )}>
                     <PieChart className="w-5 h-5" />
@@ -3639,7 +3911,7 @@ function DashboardView({
       <section className="space-y-6">
         <div className="flex items-center justify-between px-1">
           <h3 className={cn("font-black text-xl uppercase tracking-widest transition-colors", darkMode ? "text-white" : "text-slate-900")}>Actividad Reciente</h3>
-          <button onClick={() => setActiveTab('stats')} className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em]">Ver Todo</button>
+          <button onClick={() => setActiveTab('stats')} className="text-[11px] font-black text-purple-500 uppercase tracking-[0.2em]">Ver Todo</button>
         </div>
         <div className="space-y-4">
           {movements.slice(0, 5).map(m => (
@@ -3666,9 +3938,27 @@ function DashboardView({
   );
 }
 
-function CalendarView({ movements, accounts, categories, darkMode, onDelete }: { movements: Movement[], accounts: Account[], categories: Category[], darkMode: boolean, onDelete?: (m: Movement) => void }) {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [viewingDate, setViewingDate] = useState<Date>(new Date());
+function CalendarView({ 
+  movements, 
+  accounts, 
+  categories, 
+  darkMode, 
+  onDelete,
+  selectedDate,
+  setSelectedDate,
+  viewingDate,
+  setViewingDate
+}: { 
+  movements: Movement[], 
+  accounts: Account[], 
+  categories: Category[], 
+  darkMode: boolean, 
+  onDelete?: (m: Movement) => void,
+  selectedDate: Date,
+  setSelectedDate: (d: Date) => void,
+  viewingDate: Date,
+  setViewingDate: (d: Date) => void
+}) {
 
   const daysInMonth = useMemo(() => {
     const start = startOfMonth(selectedDate);
@@ -3743,7 +4033,7 @@ function CalendarView({ movements, accounts, categories, darkMode, onDelete }: {
                 setSelectedDate(now);
                 setViewingDate(now);
               }}
-              className={cn("px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-90", darkMode ? "bg-indigo-600 text-white" : "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20")}
+              className={cn("px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-90", darkMode ? "bg-purple-600 text-white" : "bg-purple-500 text-white shadow-lg shadow-purple-500/20")}
             >
               Hoy
             </button>
@@ -3752,7 +4042,7 @@ function CalendarView({ movements, accounts, categories, darkMode, onDelete }: {
 
         <div className={cn(
           "p-6 rounded-[3rem] border transition-all duration-500",
-          darkMode ? "glass-card border-slate-800/50 shadow-2xl shadow-indigo-900/10" : "glass-card-light border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.03)]"
+          darkMode ? "glass-card border-slate-800/50 shadow-2xl shadow-purple-900/10" : "glass-card-light border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.03)]"
         )}>
           <div className="grid grid-cols-7 gap-2 mb-4">
             {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d, i) => (
@@ -3775,9 +4065,9 @@ function CalendarView({ movements, accounts, categories, darkMode, onDelete }: {
                   className={cn(
                     "aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-300 relative group",
                     isSelected 
-                      ? "bg-indigo-600 text-white shadow-xl shadow-indigo-500/40 scale-110 z-10" 
+                      ? "bg-purple-600 text-white shadow-xl shadow-purple-500/40 scale-110 z-10" 
                       : isToday 
-                        ? (darkMode ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30" : "bg-indigo-50 text-indigo-600 border border-indigo-100")
+                        ? (darkMode ? "bg-purple-500/20 text-purple-400 border border-purple-500/30" : "bg-purple-50 text-purple-600 border border-purple-100")
                         : (darkMode ? "hover:bg-slate-800 text-slate-400" : "hover:bg-slate-50 text-slate-600")
                   )}
                 >
@@ -3917,7 +4207,7 @@ function StatsView({ movements, categories, darkMode }: { movements: Movement[],
       <div className="flex items-center justify-between">
         <h2 className={cn("text-xl font-black font-display uppercase tracking-widest transition-colors", darkMode ? "text-white" : "text-slate-900")}>Estadísticas</h2>
         <div className="flex gap-2">
-          <div className="px-4 py-1.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[10px] font-black uppercase tracking-widest">
+          <div className="px-4 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full text-[10px] font-black uppercase tracking-widest">
             Pro Analytics
           </div>
         </div>
@@ -3927,30 +4217,30 @@ function StatsView({ movements, categories, darkMode }: { movements: Movement[],
       <div className="grid grid-cols-2 gap-4">
         <div className={cn(
           "p-6 rounded-3xl border transition-all duration-300",
-          darkMode ? "glass-card border-slate-800/50 shadow-indigo-500/5" : "glass-card-light border-slate-100 shadow-sm"
+          darkMode ? "glass-card border-slate-800/50 shadow-purple-500/5" : "glass-card-light border-slate-100 shadow-sm"
         )}>
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Ingresos</p>
           <p className="text-2xl font-extrabold font-display text-emerald-500 tracking-tighter">S/ {totalIncome.toLocaleString()}</p>
         </div>
         <div className={cn(
           "p-6 rounded-3xl border transition-all duration-300",
-          darkMode ? "glass-card border-slate-800/50 shadow-indigo-500/5" : "glass-card-light border-slate-100 shadow-sm"
+          darkMode ? "glass-card border-slate-800/50 shadow-purple-500/5" : "glass-card-light border-slate-100 shadow-sm"
         )}>
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Gastos</p>
           <p className="text-2xl font-extrabold font-display text-rose-500 tracking-tighter">S/ {totalExpense.toLocaleString()}</p>
         </div>
         <div className={cn(
           "col-span-2 p-6 rounded-3xl border flex items-center justify-between transition-all duration-300",
-          darkMode ? "bg-indigo-900/20 border-indigo-500/20" : "bg-indigo-50 border-indigo-100"
+          darkMode ? "bg-purple-900/20 border-purple-500/20" : "bg-purple-50 border-purple-100"
         )}>
           <div>
-            <p className="text-[11px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Balance Neto</p>
+            <p className="text-[11px] font-bold text-purple-400 uppercase tracking-widest mb-2">Balance Neto</p>
             <p className={cn("text-3xl font-extrabold font-display tracking-tighter", balance >= 0 ? "text-emerald-500" : "text-rose-500")}>
               S/ {balance.toLocaleString()}
             </p>
           </div>
-          <div className="w-14 h-14 bg-indigo-500/20 rounded-2xl flex items-center justify-center">
-            <TrendingUp className="text-indigo-500 w-7 h-7" />
+          <div className="w-14 h-14 bg-purple-500/20 rounded-2xl flex items-center justify-center">
+            <TrendingUp className="text-purple-500 w-7 h-7" />
           </div>
         </div>
       </div>
@@ -3961,7 +4251,7 @@ function StatsView({ movements, categories, darkMode }: { movements: Movement[],
       )}>
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-bold text-slate-400 uppercase text-[10px] tracking-widest">Gastos por Categoría</h3>
-          <PieChart className="w-4 h-4 text-indigo-500" />
+          <PieChart className="w-4 h-4 text-purple-500" />
         </div>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
@@ -4011,7 +4301,7 @@ function StatsView({ movements, categories, darkMode }: { movements: Movement[],
       )}>
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-bold text-slate-400 uppercase text-[10px] tracking-widest">Gastos por Semana (Mes Actual)</h3>
-          <CalendarIcon className="w-4 h-4 text-indigo-500" />
+          <CalendarIcon className="w-4 h-4 text-purple-500" />
         </div>
         <div className="space-y-4">
           {weeklyExpenses.map((week, idx) => {
@@ -4032,7 +4322,7 @@ function StatsView({ movements, categories, darkMode }: { movements: Movement[],
                     initial={{ width: 0 }}
                     animate={{ width: `${percentage}%` }}
                     transition={{ duration: 0.8, delay: idx * 0.1 }}
-                    className="h-full bg-indigo-600 rounded-full"
+                    className="h-full bg-purple-600 rounded-full"
                   />
                 </div>
               </div>
@@ -4047,7 +4337,7 @@ function StatsView({ movements, categories, darkMode }: { movements: Movement[],
       )}>
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-bold text-slate-400 uppercase text-[10px] tracking-widest">Flujo de Caja (6 meses)</h3>
-          <BarChartIcon className="w-4 h-4 text-indigo-500" />
+          <BarChartIcon className="w-4 h-4 text-purple-500" />
         </div>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
@@ -4090,10 +4380,10 @@ const AccountCard = ({ acc, darkMode, onDelete }: { acc: Account, darkMode: bool
   return (
     <div className={cn(
       "p-3.5 rounded-xl border flex items-center justify-between transition-all duration-300 group overflow-hidden relative",
-      darkMode ? "glass-card border-slate-800/50 hover:border-indigo-500/30" : "glass-card-light border-slate-100 shadow-sm hover:border-indigo-100"
+      darkMode ? "glass-card border-slate-800/50 hover:border-purple-500/30" : "glass-card-light border-slate-100 shadow-sm hover:border-purple-100"
     )}>
       {/* Subtle glow effect on hover */}
-      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/5 to-indigo-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/5 to-purple-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div className="flex items-center gap-3">
         <div className="w-11 h-11 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-sm" style={{ backgroundColor: `${acc.color}15`, color: acc.color }}>
           <Icon className="w-6 h-6" />
@@ -4190,7 +4480,7 @@ function AccountsView({ accounts, userId, darkMode }: { accounts: Account[], use
         </div>
         <button onClick={() => setIsModalOpen(true)} className={cn(
           "w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all active:scale-90",
-          darkMode ? "bg-indigo-600 text-white shadow-indigo-900/40" : "bg-indigo-600 text-white shadow-indigo-200"
+          darkMode ? "bg-purple-600 text-white shadow-purple-900/40" : "bg-purple-600 text-white shadow-purple-200"
         )}>
           <Plus className="w-8 h-8" />
         </button>
@@ -4199,8 +4489,8 @@ function AccountsView({ accounts, userId, darkMode }: { accounts: Account[], use
       {/* Bancos Section */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 px-1">
-          <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-            <Briefcase className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
+            <Briefcase className="w-4 h-4 text-purple-600 dark:text-purple-400" />
           </div>
           <h3 className={cn("font-extrabold font-display text-lg tracking-tight transition-colors", darkMode ? "text-slate-200" : "text-slate-800")}>Bancos</h3>
         </div>
@@ -4260,7 +4550,7 @@ function AccountsView({ accounts, userId, darkMode }: { accounts: Account[], use
               )}
             >
               {/* Decorative background blobs for modal */}
-              <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
               <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
               <div className="flex items-center justify-between">
                 <h2 className={cn("text-sm font-bold transition-colors", darkMode ? "text-white" : "text-slate-900")}>Nueva Cuenta</h2>
@@ -4273,14 +4563,14 @@ function AccountsView({ accounts, userId, darkMode }: { accounts: Account[], use
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Nombre</label>
                   <input type="text" placeholder="Ej. BCP Ahorros" value={name} onChange={e => setName(e.target.value)} className={cn(
-                    "w-full border-none rounded-xl py-2 px-4 text-xs focus:ring-2 focus:ring-indigo-500 transition-colors",
+                    "w-full border-none rounded-xl py-2 px-4 text-xs focus:ring-2 focus:ring-purple-500 transition-colors",
                     darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                   )} required />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Tipo de Cuenta</label>
                   <select value={type} onChange={e => setType(e.target.value as AccountType)} className={cn(
-                    "w-full border-none rounded-xl py-2 px-4 text-xs focus:ring-2 focus:ring-indigo-500 transition-colors",
+                    "w-full border-none rounded-xl py-2 px-4 text-xs focus:ring-2 focus:ring-purple-500 transition-colors",
                     darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                   )}>
                     {Object.keys(ACCOUNT_ICONS).map(t => <option key={t} value={t}>{t}</option>)}
@@ -4289,7 +4579,7 @@ function AccountsView({ accounts, userId, darkMode }: { accounts: Account[], use
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Saldo Inicial</label>
                   <input type="number" placeholder="0.00" value={balance} onChange={e => setBalance(e.target.value)} className={cn(
-                    "w-full border-none rounded-xl py-2 px-4 text-xs focus:ring-2 focus:ring-indigo-500 transition-colors",
+                    "w-full border-none rounded-xl py-2 px-4 text-xs focus:ring-2 focus:ring-purple-500 transition-colors",
                     darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                   )} required />
                 </div>
@@ -4301,7 +4591,7 @@ function AccountsView({ accounts, userId, darkMode }: { accounts: Account[], use
                     ))}
                   </div>
                 </div>
-                <button className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-100 dark:shadow-indigo-900/20 mt-2 active:scale-95 transition-transform text-xs">Crear Cuenta</button>
+                <button className="w-full bg-purple-600 text-white py-2.5 rounded-xl font-bold shadow-lg shadow-purple-100 dark:shadow-purple-900/20 mt-2 active:scale-95 transition-transform text-xs">Crear Cuenta</button>
               </form>
             </motion.div>
           </motion.div>
@@ -4349,7 +4639,7 @@ function GoalContributionModal({ goal, onClose, darkMode, userId }: { goal: Goal
         )}
       >
         {/* Decorative background blobs for modal */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="flex items-center justify-between">
           <div>
@@ -4365,14 +4655,14 @@ function GoalContributionModal({ goal, onClose, darkMode, userId }: { goal: Goal
           <div className="space-y-1.5">
             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">Monto a Aportar</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-indigo-500">S/</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-purple-500">S/</span>
               <input 
                 type="number" 
                 placeholder="0.00" 
                 value={amount} 
                 onChange={e => setAmount(e.target.value)} 
                 className={cn(
-                  "w-full border-none rounded-xl py-3.5 pl-10 pr-4 text-xl font-black font-display focus:ring-2 focus:ring-indigo-500 transition-colors",
+                  "w-full border-none rounded-xl py-3.5 pl-10 pr-4 text-xl font-black font-display focus:ring-2 focus:ring-purple-500 transition-colors",
                   darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                 )} 
                 autoFocus
@@ -4380,16 +4670,16 @@ function GoalContributionModal({ goal, onClose, darkMode, userId }: { goal: Goal
               />
             </div>
           </div>
-          <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10">
+          <div className="p-4 rounded-2xl bg-purple-500/5 border border-purple-500/10">
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2">
               <span className="text-slate-500">Nuevo Progreso</span>
-              <span className="text-indigo-500">
+              <span className="text-purple-500">
                 {Math.min(100, ((goal.currentAmount + (parseFloat(amount) || 0)) / goal.targetAmount) * 100).toFixed(1)}%
               </span>
             </div>
             <div className={cn("h-2 rounded-full overflow-hidden", darkMode ? "bg-zinc-900" : "bg-slate-100")}>
               <div 
-                className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                className="h-full bg-purple-600 rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(100, ((goal.currentAmount + (parseFloat(amount) || 0)) / goal.targetAmount) * 100)}%` }}
               />
             </div>
@@ -4397,7 +4687,7 @@ function GoalContributionModal({ goal, onClose, darkMode, userId }: { goal: Goal
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-95 transition-all text-sm disabled:opacity-50"
+            className="w-full bg-purple-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-purple-500/20 active:scale-95 transition-all text-sm disabled:opacity-50"
           >
             {loading ? 'Procesando...' : 'Confirmar Aporte'}
           </button>
@@ -4495,7 +4785,7 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
         </div>
         <button onClick={() => { setEditingGoal(null); setIsModalOpen(true); }} className={cn(
           "w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all active:scale-90",
-          darkMode ? "bg-indigo-600 text-white shadow-indigo-900/40" : "bg-indigo-600 text-white shadow-indigo-200"
+          darkMode ? "bg-purple-600 text-white shadow-purple-900/40" : "bg-purple-600 text-white shadow-purple-200"
         )}>
           <Plus className="w-8 h-8" />
         </button>
@@ -4515,14 +4805,14 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
           </div>
           <div className="text-right">
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Total Ahorrado</p>
-            <p className="text-2xl font-black font-display text-indigo-500 tracking-tighter">S/ {totalSaved.toLocaleString()}</p>
+            <p className="text-2xl font-black font-display text-purple-500 tracking-tighter">S/ {totalSaved.toLocaleString()}</p>
           </div>
         </div>
         <div className={cn("h-4 rounded-full overflow-hidden mb-6", darkMode ? "bg-zinc-900" : "bg-slate-100")}>
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: `${overallProgress}%` }}
-            className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.3)]"
+            className="h-full bg-gradient-to-r from-purple-600 to-purple-600 rounded-full shadow-[0_0_20px_rgba(168,85,247,0.3)]"
           />
         </div>
         <div className="grid grid-cols-3 gap-4">
@@ -4539,7 +4829,7 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
             <p className={cn("text-lg font-black font-display text-rose-500")}>S/ {(totalTarget - totalSaved).toLocaleString()}</p>
           </div>
         </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
       </section>
 
       {/* Category Filter */}
@@ -4552,7 +4842,7 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
               className={cn(
                 "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
                 filterCategory === cat
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
+                  ? "bg-purple-600 text-white shadow-lg shadow-purple-500/20"
                   : darkMode ? "bg-zinc-900 text-slate-400 border border-zinc-800" : "bg-white text-slate-500 border border-slate-100 shadow-sm"
               )}
             >
@@ -4581,7 +4871,7 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
                 <div className="flex items-center gap-4">
                   <div className={cn(
                     "w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm",
-                    darkMode ? "bg-indigo-900/40 text-indigo-400" : "bg-indigo-50 text-indigo-600"
+                    darkMode ? "bg-purple-900/40 text-purple-400" : "bg-purple-50 text-purple-600"
                   )}>
                     <Target className="w-6 h-6" />
                   </div>
@@ -4608,7 +4898,7 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
                     onClick={() => setEditingGoal(goal)}
                     className={cn(
                       "p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100",
-                      darkMode ? "bg-zinc-900 text-slate-400 hover:text-white" : "bg-slate-50 text-slate-500 hover:text-indigo-600"
+                      darkMode ? "bg-zinc-900 text-slate-400 hover:text-white" : "bg-slate-50 text-slate-500 hover:text-purple-600"
                     )}
                   >
                     <Settings className="w-4 h-4" />
@@ -4638,14 +4928,14 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
                     animate={{ width: `${progress}%` }}
                     className={cn(
                       "h-full rounded-full shadow-[0_0_15px_rgba(79,70,229,0.4)]",
-                      isCompleted ? "bg-emerald-500" : "bg-indigo-600"
+                      isCompleted ? "bg-emerald-500" : "bg-purple-600"
                     )}
                   />
                 </div>
                 <div className="flex justify-between items-end pt-2">
                   <div>
                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Ahorrado</p>
-                    <p className={cn("text-lg font-black font-display tracking-tighter", darkMode ? "text-indigo-400" : "text-indigo-600")}>
+                    <p className={cn("text-lg font-black font-display tracking-tighter", darkMode ? "text-purple-400" : "text-purple-600")}>
                       S/ {goal.currentAmount.toLocaleString()}
                     </p>
                   </div>
@@ -4661,13 +4951,13 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
               {!isCompleted && (
                 <button 
                   onClick={() => { setSelectedGoal(goal); setIsContributeModalOpen(true); }}
-                  className="w-full py-3 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-600 hover:text-white border border-indigo-600/20 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95"
+                  className="w-full py-3 bg-purple-600/10 hover:bg-purple-600 text-purple-600 hover:text-white border border-purple-600/20 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all active:scale-95"
                 >
                   Aportar a esta meta
                 </button>
               )}
 
-              <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 rounded-full blur-3xl -mr-24 -mt-24"></div>
+              <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/5 rounded-full blur-3xl -mr-24 -mt-24"></div>
             </motion.div>
           );
         })}
@@ -4699,7 +4989,7 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
               )}
             >
               {/* Decorative background blobs for modal */}
-              <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
               <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
               <div className="flex items-center justify-between">
                 <div>
@@ -4718,35 +5008,35 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
                   <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Nombre de la Meta</label>
                     <input type="text" placeholder="Ej. Inversión Inmobiliaria" value={name} onChange={e => setName(e.target.value)} className={cn(
-                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-colors",
+                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-purple-500 transition-colors",
                       darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                     )} required />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Monto Objetivo</label>
                     <input type="number" placeholder="0.00" value={target} onChange={e => setTarget(e.target.value)} className={cn(
-                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-colors",
+                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-purple-500 transition-colors",
                       darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                     )} required />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Monto Actual</label>
                     <input type="number" placeholder="0.00" value={current} onChange={e => setCurrent(e.target.value)} className={cn(
-                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-colors",
+                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-purple-500 transition-colors",
                       darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                     )} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Fecha Límite</label>
                     <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className={cn(
-                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-colors",
+                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-purple-500 transition-colors",
                       darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                     )} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Prioridad</label>
                     <select value={priority} onChange={e => setPriority(e.target.value as any)} className={cn(
-                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-colors",
+                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-purple-500 transition-colors",
                       darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                     )}>
                       <option value="baja">Baja</option>
@@ -4757,12 +5047,12 @@ function GoalsView({ goals, userId, darkMode }: { goals: Goal[], userId: string,
                   <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Categoría</label>
                     <input type="text" placeholder="Ej. Viajes, Hogar, Retiro" value={category} onChange={e => setCategory(e.target.value)} className={cn(
-                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-colors",
+                      "w-full border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-purple-500 transition-colors",
                       darkMode ? "bg-zinc-900 text-white" : "bg-slate-50 text-slate-900"
                     )} />
                   </div>
                 </div>
-                <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 mt-4 active:scale-95 transition-transform text-sm">
+                <button className="w-full bg-purple-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-purple-500/20 mt-4 active:scale-95 transition-transform text-sm">
                   {editingGoal ? 'Guardar Cambios' : 'Crear Meta Pro'}
                 </button>
               </form>
